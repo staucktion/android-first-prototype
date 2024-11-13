@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">staucktion</string>
+    <string name="gps_is_on">GPS is ON</string>
+    <string name="gps_is_off">GPS is OFF</string>
 </resources>
