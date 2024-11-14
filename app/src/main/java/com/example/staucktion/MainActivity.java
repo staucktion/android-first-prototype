@@ -18,15 +18,12 @@ public class MainActivity extends AppCompatActivity {
 
     private TextView mtv;
     private LocationManager locationManager;
+    private static final int CAMERA_REQUEST_CODE = 100;
 
     private final BroadcastReceiver gpsStatusReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (isGpsEnabled()) {
-                mtv.setText(R.string.gps_is_on);
-            } else {
-                mtv.setText(R.string.gps_is_off);
-            }
+            updateGpsStatus(false); // Update GPS status on any change
         }
     };
 
@@ -35,35 +32,31 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Link the variables to the UI elements
+        // Link UI elements
         Button mbtn = findViewById(R.id.mbtn);
         mtv = findViewById(R.id.mtv);
 
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
 
-        // Register the BroadcastReceiver to listen for GPS status changes
+        // Register BroadcastReceiver to listen for GPS status changes
         IntentFilter filter = new IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION);
         registerReceiver(gpsStatusReceiver, filter);
 
-        // Initial check
-        if (isGpsEnabled()) {
-            mtv.setText(R.string.gps_is_on);
-        } else {
-            mtv.setText(R.string.gps_is_off);
-        }
+        // Initial GPS status check (no Toast)
+        updateGpsStatus(false);
 
-        // Set the OnClickListener for the button
+        // Set OnClickListener for the button
         mbtn.setOnClickListener(v -> {
             if (isGpsEnabled()) {
                 // Open the camera
                 Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
                 PackageManager packageManager = getPackageManager();
                 if (cameraIntent.resolveActivity(packageManager) != null) {
-                    startActivity(cameraIntent);
+                    startActivityForResult(cameraIntent, CAMERA_REQUEST_CODE);
                 }
             } else {
                 // Show a warning message
-                Toast.makeText(MainActivity.this, "Please turn on your location services to be able to take a photograph.", Toast.LENGTH_LONG).show();
+                Toast.makeText(MainActivity.this, "Please turn on location services to be able to take a photo.", Toast.LENGTH_LONG).show();
             }
         });
     }
@@ -71,6 +64,32 @@ public class MainActivity extends AppCompatActivity {
     // Method to check if GPS is enabled
     private boolean isGpsEnabled() {
         return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
+    }
+
+    // Method to update GPS status
+    private void updateGpsStatus(boolean showToast) {
+        if (isGpsEnabled()) {
+            mtv.setText(R.string.gps_is_on);
+        } else {
+            mtv.setText(R.string.gps_is_off);
+            if (showToast) {
+                Toast.makeText(MainActivity.this, "GPS is off. Please turn it back on.", Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
+    // Handle the result of the camera activity
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == CAMERA_REQUEST_CODE) {
+            // Check if the GPS is enabled after the camera activity finishes
+            if (!isGpsEnabled()) {
+                // Show a warning if GPS is off
+                Toast.makeText(MainActivity.this, "GPS is off. Please turn it back on to proceed.", Toast.LENGTH_LONG).show();
+            }
+        }
     }
 
     @Override
@@ -85,5 +104,8 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         // Register the receiver again when the activity is resumed
         registerReceiver(gpsStatusReceiver, new IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION));
+
+        // Check GPS status without showing the Toast message initially
+        updateGpsStatus(false);
     }
 }
