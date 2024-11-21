@@ -8,6 +8,7 @@ import android.content.pm.PackageManager;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -17,6 +18,7 @@ import androidx.appcompat.app.AppCompatActivity;
 public class MainActivity extends AppCompatActivity {
 
     private TextView mtv;
+    private Button btnChangeActivity;
     private LocationManager locationManager;
     private static final int CAMERA_REQUEST_CODE = 100;
 
@@ -34,9 +36,19 @@ public class MainActivity extends AppCompatActivity {
 
         // Link UI elements
         Button mbtn = findViewById(R.id.mbtn);
+        btnChangeActivity = findViewById(R.id.btnChangeActivity);
         mtv = findViewById(R.id.mtv);
 
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+
+        // click event on change activity button
+        btnChangeActivity.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(MainActivity.this, ApiActivity.class);
+                startActivity(intent);
+            }
+        });
 
         // Register BroadcastReceiver to listen for GPS status changes
         IntentFilter filter = new IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION);
