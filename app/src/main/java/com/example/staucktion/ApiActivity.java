@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -43,6 +44,9 @@ public class ApiActivity extends AppCompatActivity {
     Button btnUploadPhoto;
     TextView tvApi;
     TextView tvCode;
+    EditText etBaseUrl;
+    Button btnSetBaseUrl;
+    RetrofitClient retrofitClient;
     ApiService apiService;
     private static final int REQUEST_CODE_PERMISSION = 1;
 
@@ -63,14 +67,27 @@ public class ApiActivity extends AppCompatActivity {
         tvApi = findViewById(R.id.tvApi);
         tvCode = findViewById(R.id.tvCode);
         btnGoBack = findViewById(R.id.btnGoBack);
+        etBaseUrl = findViewById(R.id.etBaseUrl);
+        btnSetBaseUrl = findViewById(R.id.btnSetBaseUrl);
 
         // Request permissions if not already granted
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.READ_EXTERNAL_STORAGE}, REQUEST_CODE_PERMISSION);
         }
 
+        retrofitClient = new RetrofitClient();
         // Create the API Service
-        apiService = RetrofitClient.getInstance().create(ApiService.class);
+        apiService = retrofitClient.getInstance().create(ApiService.class);
+        etBaseUrl.setText(retrofitClient.getBaseUrl());
+
+        btnSetBaseUrl.setOnClickListener(v -> {
+            String newBaseUrl = etBaseUrl.getText().toString();
+            if (!newBaseUrl.isEmpty()) {
+                retrofitClient.setBaseUrl(newBaseUrl);
+                apiService = retrofitClient.getInstance().create(ApiService.class);
+                btnHealthCheck.callOnClick();
+            }
+        });
 
         // health check button click
         btnHealthCheck.setOnClickListener(new View.OnClickListener() {
