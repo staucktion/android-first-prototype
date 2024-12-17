@@ -18,23 +18,12 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <Button
-        android:id="@+id/btnHealthCheck"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="116dp"
-        android:text="Api Health Check"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.498"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/tvApi" />
-
     <TextView
         android:id="@+id/tvApi"
         android:layout_width="407dp"
         android:layout_height="28dp"
         android:layout_marginTop="52dp"
-        android:text="Will display body"
+        android:text="Press button below to check API"
         android:textAlignment="center"
         android:textSize="10pt"
         app:layout_constraintEnd_toEndOf="parent"
@@ -46,7 +35,7 @@
         android:layout_width="410dp"
         android:layout_height="28dp"
         android:layout_marginTop="32dp"
-        android:text="Will display code"
+        android:text="Press button below to check API"
         android:textAlignment="center"
         android:textSize="10pt"
         app:layout_constraintEnd_toEndOf="parent"
@@ -54,15 +43,38 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/tvApi" />
 
-    <Button
-        android:id="@+id/btnGoBack"
-        android:layout_width="wrap_content"
+    <EditText
+        android:id="@+id/etBaseUrl"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="236dp"
-        android:text="Return"
+        android:hint="Enter Base URL"
+        android:layout_marginTop="50dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/btnHealthCheck" />
+        app:layout_constraintTop_toBottomOf="@+id/tvCode"
+        />
+
+    <Button
+        android:id="@+id/btnSetBaseUrl"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="25dp"
+        android:text="Change Base URL"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.498"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/etBaseUrl" />
+
+    <Button
+        android:id="@+id/btnHealthCheck"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="75dp"
+        android:text="Api Health Check"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.498"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btnSetBaseUrl" />
 
     <Button
         android:id="@+id/btnUploadPhoto"
@@ -74,5 +86,16 @@
         app:layout_constraintHorizontal_bias="0.497"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/btnHealthCheck" />
+
+    <Button
+        android:id="@+id/btnGoBack"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="50dp"
+        android:text="Return"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btnUploadPhoto" />
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>
