@@ -44,4 +44,5 @@ dependencies {
     // Add Retrofit using Version Catalog
     implementation(libs.retrofit)
     implementation(libs.converter.gson)
+    implementation(libs.timber)
 }
