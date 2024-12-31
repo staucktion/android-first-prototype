@@ -50,13 +50,7 @@ public class CameraActivity extends Activity {
 
         IntentFilter filter = new IntentFilter(ACTION_KILL_CAMERA_ACTIVITY);
 
-        // This specifies the receiver's export flag (false means it's not exported)
-        /*if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(killReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-        } else {
-            // Because SDK levels lower than 33 does not require the flag
-            registerReceiver(killReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
-        }*/
+        registerReceiver(killReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
     }
 
     @Override
