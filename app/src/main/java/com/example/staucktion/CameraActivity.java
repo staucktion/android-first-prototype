@@ -35,7 +35,7 @@ public class CameraActivity extends Activity {
         Timber.i("Starting CameraActivity");
     }
 
-    @SuppressLint({"UnspecifiedRegisterReceiverFlag"})
+
     private void registerKillReceiver() {
         killReceiver = new BroadcastReceiver() {
             @Override
@@ -44,12 +44,19 @@ public class CameraActivity extends Activity {
                 if (ACTION_KILL_CAMERA_ACTIVITY.equals(intent.getAction())) {
                     Timber.i("Killing CameraActivity");
                     finish(); // Close the CameraActivity
-                    // throw new RuntimeException("Deliberate crash to terminate CameraActivity!");
                 }
             }
         };
+
         IntentFilter filter = new IntentFilter(ACTION_KILL_CAMERA_ACTIVITY);
-        registerReceiver(killReceiver, filter);
+
+        // This specifies the receiver's export flag (false means it's not exported)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(killReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            // Because SDK levels lower than 33 does not require the flag
+            registerReceiver(killReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        }
     }
 
     @Override
