@@ -4,7 +4,7 @@ import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 
 public class RetrofitClient {
-    private String BASE_URL = "http://192.168.1.200/";
+    private String BASE_URL = "https://ctis.goktug.dev/";// used to be http://192.168.1.200/
     private Retrofit retrofit;
 
     public RetrofitClient() {

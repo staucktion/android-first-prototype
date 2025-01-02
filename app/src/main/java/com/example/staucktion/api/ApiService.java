@@ -14,6 +14,6 @@ public interface ApiService {
     Call<ResponseBody> getHealthStatus();
 
     @Multipart
-    @POST("upload")
+    @POST("/photo/upload")//upload
     Call<ResponseBody> uploadPhoto(@Part MultipartBody.Part photo);
 }

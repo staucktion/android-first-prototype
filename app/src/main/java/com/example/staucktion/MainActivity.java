@@ -65,7 +65,8 @@ public class MainActivity extends AppCompatActivity {
         mbtn.setOnClickListener(v -> {
             if (isGpsEnabled()) {
                 // Open the camera
-                Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                Intent cameraIntent = new Intent(this, CameraActivity.class);
+                // Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE); // native one
                 PackageManager packageManager = getPackageManager();
                 if (cameraIntent.resolveActivity(packageManager) != null) {
                     startActivityForResult(cameraIntent, CAMERA_REQUEST_CODE);
@@ -98,6 +99,8 @@ public class MainActivity extends AppCompatActivity {
             if(isCameraActive && !hasGPSTurnedOffOnceWhileInCamera) {
                 hasGPSTurnedOffOnceWhileInCamera = true;
                 Timber.i("GPS is off after camera is opened");
+                Intent killIntent = new Intent("com.example.staucktion.KILL_CAMERA_ACTIVITY");
+                sendBroadcast(killIntent);
             }
         }
     }
@@ -112,6 +115,10 @@ public class MainActivity extends AppCompatActivity {
             if (hasGPSTurnedOffOnceWhileInCamera || !isGpsEnabled()) {
                 // Show a warning if GPS is off
                 Toast.makeText(MainActivity.this, "GPS was off while taking the picture. Please turn it back on.", Toast.LENGTH_LONG).show();
+            } else if(resultCode == RESULT_OK) {
+                // Show a success message if the picture was taken successfully
+                String imagePath = data.getStringExtra("image_path");
+                Toast.makeText(this, "Image saved at: " + imagePath, Toast.LENGTH_LONG).show();
             }
             isCameraActive = false;
             hasGPSTurnedOffOnceWhileInCamera = false;

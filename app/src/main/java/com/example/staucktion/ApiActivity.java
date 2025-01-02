@@ -1,5 +1,6 @@
 package com.example.staucktion;
 
+import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -49,6 +50,7 @@ public class ApiActivity extends AppCompatActivity {
     RetrofitClient retrofitClient;
     ApiService apiService;
     private static final int REQUEST_CODE_PERMISSION = 1;
+    private static final int REQUEST_CAMERA_CAPTURE = 100;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,8 +73,8 @@ public class ApiActivity extends AppCompatActivity {
         btnSetBaseUrl = findViewById(R.id.btnSetBaseUrl);
 
         // Request permissions if not already granted
-        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.READ_EXTERNAL_STORAGE}, REQUEST_CODE_PERMISSION);
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, REQUEST_CODE_PERMISSION);
         }
 
         retrofitClient = new RetrofitClient();
@@ -137,7 +139,7 @@ public class ApiActivity extends AppCompatActivity {
             }
         });
 
-        // Activity Result API for selecting an image
+        /*// Activity Result API for selecting an image
         ActivityResultLauncher<Intent> photoPickerLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
@@ -155,18 +157,38 @@ public class ApiActivity extends AppCompatActivity {
             Intent intent = new Intent(Intent.ACTION_PICK);
             intent.setType("image/*");
             photoPickerLauncher.launch(intent);
+        });*/
+        btnUploadPhoto.setOnClickListener(v -> {
+            Intent cameraIntent = new Intent(this, CameraActivity.class);
+            startActivityForResult(cameraIntent, REQUEST_CAMERA_CAPTURE);
         });
     }
 
-    private void uploadPhoto(Uri photoUri) {
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_CAMERA_CAPTURE && resultCode == RESULT_OK) {
+            // Image capture success, get the image path
+            String imagePath = data.getStringExtra("image_path");
+            File photoFile = new File(imagePath);
+
+            // Upload photo to server
+            uploadPhoto(photoFile);
+        } else {
+            Toast.makeText(this, "Failed to capture photo", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+
+
+    private void uploadPhoto(File photoFile) {
         tvApi.setText("loading");
         tvCode.setText("loading");
 
-        if (photoUri == null) return;
+        if (photoFile == null) return;
 
         try {
-            // Convert the URI to a File
-            File photoFile = new File(FileUtils.getPath(this, photoUri));
+            // Convert the URI to a File//Part of the old code that had the user select the image
+            //File photoFile = new File(FileUtils.getPath(this, photoUri));
 
             // Create a RequestBody for the photo
             RequestBody requestFile = RequestBody.create(MediaType.get("image/*"), photoFile);
