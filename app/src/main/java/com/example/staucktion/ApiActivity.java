@@ -49,6 +49,7 @@ public class ApiActivity extends AppCompatActivity {
     Button btnSetBaseUrl;
     RetrofitClient retrofitClient;
     ApiService apiService;
+    MainActivity mainActivity;
     private static final int REQUEST_CODE_PERMISSION = 1;
     private static final int REQUEST_CAMERA_CAPTURE = 100;
 
@@ -81,6 +82,7 @@ public class ApiActivity extends AppCompatActivity {
         // Create the API Service
         apiService = retrofitClient.getInstance().create(ApiService.class);
         etBaseUrl.setText(retrofitClient.getBaseUrl());
+        mainActivity = MainActivity.getInstance();
 
         btnSetBaseUrl.setOnClickListener(v -> {
             String newBaseUrl = etBaseUrl.getText().toString();
@@ -159,14 +161,42 @@ public class ApiActivity extends AppCompatActivity {
             photoPickerLauncher.launch(intent);
         });*/
         btnUploadPhoto.setOnClickListener(v -> {
-            Intent cameraIntent = new Intent(this, CameraActivity.class);
-            startActivityForResult(cameraIntent, REQUEST_CAMERA_CAPTURE);
+            /*Intent cameraIntent = new Intent(this, CameraActivity.class);
+            mainActivity.setIsCameraActive(true);
+            startActivityForResult(cameraIntent, REQUEST_CAMERA_CAPTURE);*/
+            if (mainActivity.getIsGpsEnabled()) {
+                // Open the camera
+                Intent cameraIntent = new Intent(this, CameraActivity.class);
+                // Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE); // native one
+                PackageManager packageManager = getPackageManager();
+                if (cameraIntent.resolveActivity(packageManager) != null) {
+                    startActivityForResult(cameraIntent, REQUEST_CAMERA_CAPTURE);
+                    mainActivity.setIsCameraActive(true);
+                    mainActivity.setHasGPSTurnedOffOnceWhileInCamera(false);
+                }
+            } else {
+                // Show a warning message
+                Toast.makeText(this, "Please turn on location services to be able to take a photo.", Toast.LENGTH_LONG).show();
+            }
         });
     }
 
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_CAMERA_CAPTURE && resultCode == RESULT_OK) {
+
+        if(mainActivity != null) {
+            if(mainActivity.isCameraActivityFinishedProperly(requestCode, resultCode, data)) {
+                String imagePath = data.getStringExtra("image_path");
+                File photoFile = new File(imagePath);
+
+                // Upload photo to server
+                uploadPhoto(photoFile);
+            }
+        } else {
+            Toast.makeText(this, "Something went wrong while handling the camera activity result", Toast.LENGTH_SHORT).show();
+        }
+
+        /*if (requestCode == REQUEST_CAMERA_CAPTURE && resultCode == RESULT_OK) {
             // Image capture success, get the image path
             String imagePath = data.getStringExtra("image_path");
             File photoFile = new File(imagePath);
@@ -175,7 +205,7 @@ public class ApiActivity extends AppCompatActivity {
             uploadPhoto(photoFile);
         } else {
             Toast.makeText(this, "Failed to capture photo", Toast.LENGTH_SHORT).show();
-        }
+        }*/
     }
 
 

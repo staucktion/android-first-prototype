@@ -18,6 +18,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
 
+    private static MainActivity instance;
     private TextView mtv;
     private Button btnChangeActivity;
     private LocationManager locationManager;
@@ -35,6 +36,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        instance = this;
         Timber.plant(new Timber.DebugTree());
         Timber.i("Starting MainActivity");
 
@@ -80,6 +82,10 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    public static MainActivity getInstance() {
+        return instance;
+    }
+
     // Method to check if GPS is enabled
     private boolean isGpsEnabled() {
         return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
@@ -110,18 +116,40 @@ public class MainActivity extends AppCompatActivity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
+        if (this.isCameraActivityFinishedProperly(requestCode, resultCode, data)) {
+            // Show a success message if the picture was taken successfully
+            String imagePath = data.getStringExtra("image_path");
+            Toast.makeText(this, "Image saved at: " + imagePath, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    public void setIsCameraActive(boolean isCameraActive) {
+        this.isCameraActive = isCameraActive;
+    }
+
+    public boolean getIsGpsEnabled() {
+        return isGpsEnabled();
+    }
+
+    public void setHasGPSTurnedOffOnceWhileInCamera(boolean hasGPSTurnedOffOnceWhileInCamera) {
+        this.hasGPSTurnedOffOnceWhileInCamera = hasGPSTurnedOffOnceWhileInCamera;
+    }
+
+    public boolean isCameraActivityFinishedProperly(int requestCode, int resultCode, Intent data) {
+        boolean result = false;
         if (requestCode == CAMERA_REQUEST_CODE) {
             // Check if the GPS has been disabled at least once while taking picture after the camera activity finishes
             if (hasGPSTurnedOffOnceWhileInCamera || !isGpsEnabled()) {
                 // Show a warning if GPS is off
                 Toast.makeText(MainActivity.this, "GPS was off while taking the picture. Please turn it back on.", Toast.LENGTH_LONG).show();
             } else if(resultCode == RESULT_OK) {
-                // Show a success message if the picture was taken successfully
-                String imagePath = data.getStringExtra("image_path");
-                Toast.makeText(this, "Image saved at: " + imagePath, Toast.LENGTH_LONG).show();
+                // Handling of the result changes based on from which activity it has been called from
+                result = true;
             }
             isCameraActive = false;
             hasGPSTurnedOffOnceWhileInCamera = false;
         }
+        return result;
     }
+
 }
