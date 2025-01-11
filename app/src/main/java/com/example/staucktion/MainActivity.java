@@ -32,6 +32,8 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -41,7 +43,7 @@ public class MainActivity extends AppCompatActivity {
         Timber.i("Starting MainActivity");
 
         // Link UI elements
-        Button mbtn = findViewById(R.id.mbtn);
+        //Button mbtn = findViewById(R.id.mbtn);
         btnChangeActivity = findViewById(R.id.btnChangeActivity);
         mtv = findViewById(R.id.mtv);
 
@@ -64,7 +66,8 @@ public class MainActivity extends AppCompatActivity {
         updateGpsStatus(false);
 
         // Set OnClickListener for the button
-        mbtn.setOnClickListener(v -> {
+        //This section of code is used to launch the camera using an onClickListener
+        /*mbtn.setOnClickListener(v -> {
             if (isGpsEnabled()) {
                 // Open the camera
                 Intent cameraIntent = new Intent(this, CameraActivity.class);
@@ -79,14 +82,17 @@ public class MainActivity extends AppCompatActivity {
                 // Show a warning message
                 Toast.makeText(MainActivity.this, "Please turn on location services to be able to take a photo.", Toast.LENGTH_LONG).show();
             }
-        });
+        });*/
+        //
     }
 
+    //Allows these classes to access the current instance of MainActivity
+    // without needing to pass the activity context explicitly everywhere.
     public static MainActivity getInstance() {
         return instance;
     }
 
-    // Method to check if GPS is enabled
+    // Method which checks to see if GPS is enabled
     private boolean isGpsEnabled() {
         return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
     }
@@ -135,8 +141,11 @@ public class MainActivity extends AppCompatActivity {
         this.hasGPSTurnedOffOnceWhileInCamera = hasGPSTurnedOffOnceWhileInCamera;
     }
 
+    //This method makes sure the camera activity finished properly
+
     public boolean isCameraActivityFinishedProperly(int requestCode, int resultCode, Intent data) {
         boolean result = false;
+        //Parameter to check the result is coming from the camera activity.
         if (requestCode == CAMERA_REQUEST_CODE) {
             // Check if the GPS has been disabled at least once while taking picture after the camera activity finishes
             if (hasGPSTurnedOffOnceWhileInCamera || !isGpsEnabled()) {

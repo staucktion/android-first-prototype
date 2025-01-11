@@ -24,6 +24,7 @@ import androidx.core.view.WindowInsetsCompat;
 
 import com.example.staucktion.api.ApiService;
 import com.example.staucktion.api.RetrofitClient;
+
 import com.example.staucktion.utils.FileUtils;
 
 import java.io.File;
@@ -77,7 +78,7 @@ public class ApiActivity extends AppCompatActivity {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, REQUEST_CODE_PERMISSION);
         }
-
+        //Initializes retrofit to use in creating an API Service
         retrofitClient = new RetrofitClient();
         // Create the API Service
         apiService = retrofitClient.getInstance().create(ApiService.class);
@@ -107,8 +108,13 @@ public class ApiActivity extends AppCompatActivity {
                 // Perform the network request
                 call.enqueue(new Callback<ResponseBody>() {
                     @Override
+                    // method that gets triggered when the HTTP request made above
+                    // by Retrofit receives a response from the server.
                     public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
                         if (response.isSuccessful() && response.body() != null) {
+                            //if the response has a success code and the body isn't null then we
+                            // move forward with the code. Using the contents of the body to fill
+                            //this health check section
                             try {
                                 String responseBody = response.body().string();
                                 String responseCode = response.code() + "";
@@ -141,25 +147,10 @@ public class ApiActivity extends AppCompatActivity {
             }
         });
 
-        /*// Activity Result API for selecting an image
-        ActivityResultLauncher<Intent> photoPickerLauncher = registerForActivityResult(
-                new ActivityResultContracts.StartActivityForResult(),
-                result -> {
-                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                        Uri selectedPhotoUri = result.getData().getData();
-                        uploadPhoto(selectedPhotoUri);
-                    } else {
-                        Toast.makeText(this, "No photo selected", Toast.LENGTH_SHORT).show();
-                    }
-                }
-        );
 
-        // upload photo click
-        btnUploadPhoto.setOnClickListener(view -> {
-            Intent intent = new Intent(Intent.ACTION_PICK);
-            intent.setType("image/*");
-            photoPickerLauncher.launch(intent);
-        });*/
+
+
+        //This segment commences the GPS checks for the Take/Upload Photo Button
         btnUploadPhoto.setOnClickListener(v -> {
             /*Intent cameraIntent = new Intent(this, CameraActivity.class);
             mainActivity.setIsCameraActive(true);
@@ -217,8 +208,7 @@ public class ApiActivity extends AppCompatActivity {
         if (photoFile == null) return;
 
         try {
-            // Convert the URI to a File//Part of the old code that had the user select the image
-            //File photoFile = new File(FileUtils.getPath(this, photoUri));
+
 
             // Create a RequestBody for the photo
             RequestBody requestFile = RequestBody.create(MediaType.get("image/*"), photoFile);

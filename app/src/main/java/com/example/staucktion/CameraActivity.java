@@ -35,7 +35,8 @@ public class CameraActivity extends Activity {
         Timber.i("Starting CameraActivity");
     }
 
-
+    //meant to kill the camera activity when the app does not obey
+    // the conditions to have it active like the appropriate GPS status
     private void registerKillReceiver() {
         killReceiver = new BroadcastReceiver() {
             @Override
@@ -68,6 +69,8 @@ public class CameraActivity extends Activity {
             // Create the File where the photo should go
             File photoFile = null;
             try {
+                //Creates a file where the photo will be stored
+                // within the application's private storage area
                 photoFile = createImageFile();
             } catch (IOException ex) {
                 // Error occurred while creating the File
@@ -85,6 +88,7 @@ public class CameraActivity extends Activity {
     }
 
     @Override
+    //related to the camera intent for capturing an image. It is about the result of that operation
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
