@@ -25,12 +25,12 @@ public class MainActivity extends AppCompatActivity {
     private static final int CAMERA_REQUEST_CODE = 100;
     private boolean isCameraActive = false;
     private boolean hasGPSTurnedOffOnceWhileInCamera = false;
-    private final BroadcastReceiver gpsStatusReceiver = new BroadcastReceiver() {
+    /*private final BroadcastReceiver gpsStatusReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             updateGpsStatus(false); // Update GPS status on any change
         }
-    };
+    };*/
 
 
 
@@ -60,10 +60,10 @@ public class MainActivity extends AppCompatActivity {
 
         // Register BroadcastReceiver to listen for GPS status changes
         IntentFilter filter = new IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION);
-        registerReceiver(gpsStatusReceiver, filter);
+       // registerReceiver(gpsStatusReceiver, filter);
 
         // Initial GPS status check (no Toast)
-        updateGpsStatus(false);
+       // updateGpsStatus(false);
 
         // Set OnClickListener for the button
         //This section of code is used to launch the camera using an onClickListener
@@ -91,7 +91,7 @@ public class MainActivity extends AppCompatActivity {
     public static MainActivity getInstance() {
         return instance;
     }
-
+/*
     // Method which checks to see if GPS is enabled
     private boolean isGpsEnabled() {
         return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
@@ -160,5 +160,5 @@ public class MainActivity extends AppCompatActivity {
         }
         return result;
     }
-
+*/
 }

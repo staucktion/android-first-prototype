@@ -26,6 +26,7 @@ import com.example.staucktion.api.ApiService;
 import com.example.staucktion.api.RetrofitClient;
 
 import com.example.staucktion.utils.FileUtils;
+import com.example.staucktion.utils.GPSUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -50,6 +51,7 @@ public class ApiActivity extends AppCompatActivity {
     Button btnSetBaseUrl;
     RetrofitClient retrofitClient;
     ApiService apiService;
+    GPSUtils gpsUtils;
     MainActivity mainActivity;
     private static final int REQUEST_CODE_PERMISSION = 1;
     private static final int REQUEST_CAMERA_CAPTURE = 100;
@@ -83,6 +85,7 @@ public class ApiActivity extends AppCompatActivity {
         // Create the API Service
         apiService = retrofitClient.getInstance().create(ApiService.class);
         etBaseUrl.setText(retrofitClient.getBaseUrl());
+        gpsUtils = new GPSUtils(this);
         mainActivity = MainActivity.getInstance();
 
         btnSetBaseUrl.setOnClickListener(v -> {
@@ -155,15 +158,15 @@ public class ApiActivity extends AppCompatActivity {
             /*Intent cameraIntent = new Intent(this, CameraActivity.class);
             mainActivity.setIsCameraActive(true);
             startActivityForResult(cameraIntent, REQUEST_CAMERA_CAPTURE);*/
-            if (mainActivity.getIsGpsEnabled()) {
+            if (gpsUtils.getIsGpsEnabled()) {
                 // Open the camera
                 Intent cameraIntent = new Intent(this, CameraActivity.class);
                 // Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE); // native one
                 PackageManager packageManager = getPackageManager();
                 if (cameraIntent.resolveActivity(packageManager) != null) {
                     startActivityForResult(cameraIntent, REQUEST_CAMERA_CAPTURE);
-                    mainActivity.setIsCameraActive(true);
-                    mainActivity.setHasGPSTurnedOffOnceWhileInCamera(false);
+                    gpsUtils.setIsCameraActive(true);
+                    gpsUtils.setHasGPSTurnedOffOnceWhileInCamera(false);
                 }
             } else {
                 // Show a warning message
@@ -175,8 +178,8 @@ public class ApiActivity extends AppCompatActivity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
-        if(mainActivity != null) {
-            if(mainActivity.isCameraActivityFinishedProperly(requestCode, resultCode, data)) {
+        if(gpsUtils != null) {
+            if(gpsUtils.isCameraActivityFinishedProperly(requestCode, resultCode, data, REQUEST_CAMERA_CAPTURE)) {
                 String imagePath = data.getStringExtra("image_path");
                 File photoFile = new File(imagePath);
 
