@@ -21,7 +21,7 @@
     <!-- Open Camera Button -->
 
     <ImageView
-        android:id="@+id/logo"
+        android:id="@+id/staucktionLogo"
         android:layout_width="129dp"
         android:layout_height="127dp"
         android:layout_marginTop="20dp"
@@ -32,7 +32,7 @@
         app:layout_constraintTop_toTopOf="parent" />
 
     <TextView
-        android:id="@+id/title"
+        android:id="@+id/staucktionTitle"
         android:layout_width="188dp"
         android:layout_height="49dp"
         android:layout_marginTop="20dp"
@@ -44,10 +44,10 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.548"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/logo" />
+        app:layout_constraintTop_toBottomOf="@+id/staucktionLogo" />
 
     <com.google.android.material.button.MaterialButton
-        android:id="@+id/mbtn"
+        android:id="@+id/openCamerabtn"
         android:layout_width="188dp"
         android:layout_height="68dp"
         android:layout_marginTop="152dp"
@@ -62,6 +62,6 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.551"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/title" />
+        app:layout_constraintTop_toBottomOf="@+id/staucktionTitle" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

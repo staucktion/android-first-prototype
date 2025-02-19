@@ -38,9 +38,9 @@ public class ApiActivity extends AppCompatActivity {
     private static final int REQUEST_CAMERA_CAPTURE = 100;
 
     // Views from the main layout
-    private ImageView logo;
-    private TextView title;
-    private MaterialButton mbtn;
+    private ImageView staucktionLogo;
+    private TextView staucktionTitle;
+    private MaterialButton openCamerabtn;
 
     // Networking
     private RetrofitClient retrofitClient;
@@ -64,11 +64,11 @@ public class ApiActivity extends AppCompatActivity {
         });
 
         // Find views from the main layout
-        logo = findViewById(R.id.logo);
-        title = findViewById(R.id.title);
-        mbtn = findViewById(R.id.mbtn);
+        staucktionLogo = findViewById(R.id.staucktionLogo);
+        staucktionTitle = findViewById(R.id.staucktionTitle);
+        openCamerabtn = findViewById(R.id.openCamerabtn);
 
-        if (mbtn == null) {
+        if (openCamerabtn == null) {
             Toast.makeText(this, "Button not found. Check your layout file.", Toast.LENGTH_SHORT).show();
         }
 
@@ -87,7 +87,7 @@ public class ApiActivity extends AppCompatActivity {
         mainActivity = MainActivity.getInstance();
 
         // Set click listener for the camera button
-        mbtn.setOnClickListener(v -> {
+        openCamerabtn.setOnClickListener(v -> {
             if (mainActivity != null && mainActivity.getIsGpsEnabled()) {
                 Intent cameraIntent = new Intent(this, CameraActivity.class);
                 if (cameraIntent.resolveActivity(getPackageManager()) != null) {

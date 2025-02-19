@@ -10,11 +10,8 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.location.LocationManager;
 import android.os.Bundle;
-import android.provider.MediaStore;
 import android.util.Log;
-import android.view.View;
 import android.widget.Button;
-import android.widget.TextView;
 import android.widget.Toast;
 import timber.log.Timber;
 
@@ -46,7 +43,7 @@ public class MainActivity extends AppCompatActivity {
         startActivity(intent);
 
         // Link UI elements
-        Button mbtn = findViewById(R.id.mbtn);
+        Button openCamerabtn = findViewById(R.id.openCamerabtn);
 
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
 
@@ -58,7 +55,7 @@ public class MainActivity extends AppCompatActivity {
         updateGpsStatus(false);
 
         // Set OnClickListener for the button
-        mbtn.setOnClickListener(v -> {
+        openCamerabtn.setOnClickListener(v -> {
             Log.d("MainActivity", "GPS enabled: " + isGpsEnabled());
 
             if (isGpsEnabled()) {
