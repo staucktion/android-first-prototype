@@ -14,6 +14,6 @@ public interface ApiService {
     Call<ResponseBody> getHealthStatus();
 
     @Multipart
-    @POST("/photo/upload")//upload
+    @POST("web-api/photos")// /photo/upload for https://ctis.goktug.dev/
     Call<ResponseBody> uploadPhoto(@Part MultipartBody.Part photo);
 }
