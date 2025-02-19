@@ -1,5 +1,8 @@
 package com.example.staucktion;
 
+import static com.example.staucktion.R.layout.activity_main;
+
+import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -8,6 +11,7 @@ import android.content.pm.PackageManager;
 import android.location.LocationManager;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
@@ -19,8 +23,6 @@ import androidx.appcompat.app.AppCompatActivity;
 public class MainActivity extends AppCompatActivity {
 
     private static MainActivity instance;
-    private TextView mtv;
-    private Button btnChangeActivity;
     private LocationManager locationManager;
     private static final int CAMERA_REQUEST_CODE = 100;
     private boolean isCameraActive = false;
@@ -32,29 +34,21 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+    @SuppressLint("MissingInflatedId")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        setContentView(activity_main);
         instance = this;
         Timber.plant(new Timber.DebugTree());
         Timber.i("Starting MainActivity");
+        Intent intent = new Intent(MainActivity.this, ApiActivity.class);
+        startActivity(intent);
 
         // Link UI elements
         Button mbtn = findViewById(R.id.mbtn);
-        btnChangeActivity = findViewById(R.id.btnChangeActivity);
-        mtv = findViewById(R.id.mtv);
 
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
-
-        // click event on change activity button
-        btnChangeActivity.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent intent = new Intent(MainActivity.this, ApiActivity.class);
-                startActivity(intent);
-            }
-        });
 
         // Register BroadcastReceiver to listen for GPS status changes
         IntentFilter filter = new IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION);
@@ -65,6 +59,8 @@ public class MainActivity extends AppCompatActivity {
 
         // Set OnClickListener for the button
         mbtn.setOnClickListener(v -> {
+            Log.d("MainActivity", "GPS enabled: " + isGpsEnabled());
+
             if (isGpsEnabled()) {
                 // Open the camera
                 Intent cameraIntent = new Intent(this, CameraActivity.class);
@@ -92,17 +88,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // Method to update GPS status
+    // Method to update GPS status without modifying the UI
     private void updateGpsStatus(boolean showToast) {
-        if (isGpsEnabled()) {
-            mtv.setText(R.string.gps_is_on);
-            Timber.i("GPS is on");
-        } else {
-            mtv.setText(R.string.gps_is_off);
-            Timber.i("GPS is off");
+        if (!isGpsEnabled()) {
             if (showToast) {
                 Toast.makeText(MainActivity.this, "GPS is off. Please turn it back on.", Toast.LENGTH_LONG).show();
             }
-            if(isCameraActive && !hasGPSTurnedOffOnceWhileInCamera) {
+            if (isCameraActive && !hasGPSTurnedOffOnceWhileInCamera) {
                 hasGPSTurnedOffOnceWhileInCamera = true;
                 Timber.i("GPS is off after camera is opened");
                 Intent killIntent = new Intent("com.example.staucktion.KILL_CAMERA_ACTIVITY");

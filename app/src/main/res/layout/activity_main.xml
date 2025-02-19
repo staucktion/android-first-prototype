@@ -1,44 +1,67 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:padding="24dp"
+    android:background="@drawable/gradient_background"
     tools:context=".MainActivity">
 
+    <!-- Logo Image -->
 
-    <TextView
-        android:id="@+id/mtv"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="176dp"
-        android:layout_marginTop="228dp"
-        android:layout_marginEnd="177dp"
-        android:text="TextView"
-        android:textSize="15pt"
+    <!-- Title TextView -->
+
+    <!-- Engaging Illustration -->
+
+    <!-- Tagline / Instructions -->
+
+    <!-- Open Camera Button -->
+
+    <ImageView
+        android:id="@+id/logo"
+        android:layout_width="129dp"
+        android:layout_height="127dp"
+        android:layout_marginTop="20dp"
+        android:contentDescription="Staucktion Logo"
+        android:src="@drawable/staucktion_logo"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.447"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <Button
-        android:id="@+id/mbtn"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="112dp"
-        android:text="Open Camera"
+    <TextView
+        android:id="@+id/title"
+        android:layout_width="188dp"
+        android:layout_height="49dp"
+        android:layout_marginTop="20dp"
+        android:fontFamily="sans-serif-condensed"
+        android:text="St{au}cktion"
+        android:textColor="@color/primary_text"
+        android:textSize="36sp"
+        android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.548"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/mtv" />
+        app:layout_constraintTop_toBottomOf="@+id/logo" />
 
-    <Button
-        android:id="@+id/btnChangeActivity"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="132dp"
-        android:text="Go Api Activity"
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/mbtn"
+        android:layout_width="188dp"
+        android:layout_height="68dp"
+        android:layout_marginTop="152dp"
+        android:backgroundTint="@color/primary_button"
+        android:drawableLeft="@drawable/ic_camera"
+        android:elevation="4dp"
+        android:fontFamily="sans-serif-medium"
+        android:padding="18dp"
+        android:text="Open Camera"
+        android:textColor="@android:color/white"
+        android:textSize="18sp"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.551"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/mbtn" />
+        app:layout_constraintTop_toBottomOf="@+id/title" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>
