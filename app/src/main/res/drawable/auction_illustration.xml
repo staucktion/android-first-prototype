@@ -1,0 +1,29 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!--
+      A "gavel" icon from Google's Material Icons, representing auctions.
+      You can adjust android:fillColor and size to match your design needs.
+    -->
+
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M1,21h12v-2H1v2z
+                          M7.37,16.29
+                          l2.39,-2.39
+                          3.54,3.54
+                          2.83,-2.83
+                          -3.54,-3.54
+                          2.39,-2.39
+                          c0.35,-0.35,0.35,-0.93,0,-1.29
+                          l-2.83,-2.83
+                          c-0.35,-0.35,-0.93,-0.35,-1.29,0
+                          l-2.39,2.39
+                          L3.83,11.5
+                          c-0.35,0.35,-0.35,0.93,0,1.29
+                          l2.83,2.83
+                          c0.36,0.35,0.93,0.35,1.29,-0.33z" />
+</vector>
