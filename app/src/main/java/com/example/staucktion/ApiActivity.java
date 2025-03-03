@@ -37,7 +37,7 @@ public class ApiActivity extends AppCompatActivity {
     private static final int REQUEST_CODE_PERMISSION = 1;
     private static final int REQUEST_CAMERA_CAPTURE = 100;
 
-    // Views from the main layout
+    // Views from the layout
     private ImageView staucktionLogo;
     private TextView staucktionTitle;
     private MaterialButton openCamerabtn;
@@ -54,7 +54,7 @@ public class ApiActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
-        // Use the main layout instead of activity_api
+        // Use the main layout; adjust if you have a separate layout for API activity
         setContentView(R.layout.activity_main);
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
@@ -63,7 +63,6 @@ public class ApiActivity extends AppCompatActivity {
             return insets;
         });
 
-        // Find views from the main layout
         staucktionLogo = findViewById(R.id.staucktionLogo);
         staucktionTitle = findViewById(R.id.staucktionTitle);
         openCamerabtn = findViewById(R.id.openCamerabtn);
@@ -72,21 +71,16 @@ public class ApiActivity extends AppCompatActivity {
             Toast.makeText(this, "Button not found. Check your layout file.", Toast.LENGTH_SHORT).show();
         }
 
-        // Request CAMERA permission if not granted
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this,
                     new String[]{Manifest.permission.CAMERA}, REQUEST_CODE_PERMISSION);
         }
 
-        // Initialize Retrofit and ApiService
-        retrofitClient = new RetrofitClient();
-        apiService = retrofitClient.getInstance().create(ApiService.class);
+        apiService = RetrofitClient.getInstance().create(ApiService.class);
 
-        // Get the MainActivity singleton (if it exists)
         mainActivity = MainActivity.getInstance();
 
-        // Set click listener for the camera button
         openCamerabtn.setOnClickListener(v -> {
             if (mainActivity != null && mainActivity.getIsGpsEnabled()) {
                 Intent cameraIntent = new Intent(this, CameraActivity.class);
@@ -110,7 +104,7 @@ public class ApiActivity extends AppCompatActivity {
         super.onActivityResult(requestCode, resultCode, data);
 
         if (mainActivity != null) {
-            if (mainActivity.isCameraActivityFinishedProperly(requestCode, resultCode, data)) {
+            if (mainActivity.isCameraActivityFinishedProperly(requestCode, resultCode)) {
                 String imagePath = data.getStringExtra("image_path");
                 File photoFile = new File(imagePath);
                 uploadPhoto(photoFile);
@@ -135,19 +129,20 @@ public class ApiActivity extends AppCompatActivity {
             RequestBody requestFile = RequestBody.create(MediaType.get("image/*"), photoFile);
             MultipartBody.Part body = MultipartBody.Part.createFormData("photo", photoFile.getName(), requestFile);
 
+            // Ensure your Retrofit client attaches the authentication token (appToken) to requests,
+            // for example, via an OkHttp interceptor.
             Call<ResponseBody> call = apiService.uploadPhoto(body);
             call.enqueue(new Callback<ResponseBody>() {
                 @Override
                 public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
                     if (response.isSuccessful()) {
                         if (response.body() != null) {
-                            String responseBody;
                             try {
-                                responseBody = response.body().string();
+                                String responseBody = response.body().string();
+                                Toast.makeText(ApiActivity.this, "Upload successful!", Toast.LENGTH_SHORT).show();
                             } catch (IOException e) {
                                 throw new RuntimeException(e);
                             }
-                            Toast.makeText(ApiActivity.this, "Upload successful!", Toast.LENGTH_SHORT).show();
                         } else if (response.code() == 204) {
                             Toast.makeText(ApiActivity.this, "Upload successful!", Toast.LENGTH_SHORT).show();
                         }

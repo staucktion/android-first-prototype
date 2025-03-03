@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <!-- The fill color can be adjusted as needed -->
+    <solid android:color="@color/circular_background"/>
+
+    <!-- Optional stroke for an outline -->
+    <stroke
+        android:width="2dp"
+        android:color="#CCCCCC" />
+</shape>
