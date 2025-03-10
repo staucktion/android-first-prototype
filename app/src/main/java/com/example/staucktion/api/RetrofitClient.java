@@ -4,21 +4,29 @@ import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 
 public class RetrofitClient {
-    private String BASE_URL = "https://staucktion.com.tr/";// used to be http://192.168.1.200/
-    // https://ctis.goktug.dev/
+    private static RetrofitClient instance;
     private Retrofit retrofit;
+    private String BASE_URL = "https://staucktion.com.tr/"; // Ensure this URL is correct
 
+    // Private constructor ensures no external instantiation.
     public RetrofitClient() {
-        if (retrofit == null) {
-            retrofit = new Retrofit.Builder()
-                    .baseUrl(BASE_URL)
-                    .addConverterFactory(GsonConverterFactory.create())
-                    .build();
-        }
+        retrofit = new Retrofit.Builder()
+                .baseUrl(BASE_URL)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build();
     }
 
-    public Retrofit getInstance() {
-        return retrofit;
+    // Synchronized singleton instance getter.
+    public static synchronized RetrofitClient getInstance() {
+        if (instance == null) {
+            instance = new RetrofitClient();
+        }
+        return instance;
+    }
+
+    // Delegate create method.
+    public <S> S create(Class<S> serviceClass) {
+        return retrofit.create(serviceClass);
     }
 
     public String getBaseUrl() {
