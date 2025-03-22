@@ -1,7 +1,8 @@
 package com.example.staucktion.models;
 
 public class AuthResponse {
-    private String token; // or any fields your backend returns
+    private String token; // instance variable
+    private long expiresInMillis;
 
     public String getToken() {
         return token;
@@ -9,5 +10,13 @@ public class AuthResponse {
 
     public void setToken(String token) {
         this.token = token;
+    }
+
+    public long getExpiresInMillis() {
+        return expiresInMillis;
+    }
+
+    public void setExpiresInMillis(long expiresInMillis) {
+        this.expiresInMillis = expiresInMillis;
     }
 }

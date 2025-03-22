@@ -3,26 +3,27 @@ package com.example.staucktion;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
-import android.widget.ImageView;
-import android.widget.TextView;
+import android.view.View;
 import android.widget.Toast;
 
-import androidx.activity.EdgeToEdge;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
-import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.staucktion.api.ApiService;
+import com.example.staucktion.api.CategoryManager;
 import com.example.staucktion.api.RetrofitClient;
-import com.google.android.material.button.MaterialButton;
+import com.example.staucktion.managers.LocationApiManager;
+import com.example.staucktion.models.CategoryRequest;
+import com.example.staucktion.models.CategoryResponse;
+import com.example.staucktion.models.LocationCreateResponse;
 
 import java.io.File;
-import java.io.IOException;
 
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
@@ -35,129 +36,218 @@ import retrofit2.Response;
 public class ApiActivity extends AppCompatActivity {
 
     private static final int REQUEST_CODE_PERMISSION = 1;
-    private static final int REQUEST_CAMERA_CAPTURE = 100;
-
-    // Views from the layout
-    private ImageView staucktionLogo;
-    private TextView staucktionTitle;
-    private MaterialButton openCamerabtn;
-
-    // Networking
-    private RetrofitClient retrofitClient;
     private ApiService apiService;
+    private int categoryId = -1;
 
-    // Reference to MainActivity singleton
-    private MainActivity mainActivity;
+    // The category name if we're creating a new location/category
+    private String newLocationName = "";
+    private String imagePath;
 
-    @SuppressLint("MissingInflatedId")
+    // We'll capture device info for the upload request
+    private String deviceInfo = "Unknown Device";
+
+    private LocationApiManager locationApiManager;
+    private CategoryManager categoryManager;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
-        // Use the main layout; adjust if you have a separate layout for API activity
-        setContentView(R.layout.activity_main);
+        // Use a blank view since this activity runs background tasks
+        setContentView(new View(this));
 
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
-            return insets;
-        });
+        locationApiManager = new LocationApiManager();
 
-        staucktionLogo = findViewById(R.id.staucktionLogo);
-        staucktionTitle = findViewById(R.id.staucktionTitle);
-        openCamerabtn = findViewById(R.id.openCamerabtn);
-
-        if (openCamerabtn == null) {
-            Toast.makeText(this, "Button not found. Check your layout file.", Toast.LENGTH_SHORT).show();
-        }
-
+        // Check CAMERA permission; if not granted, request it
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this,
-                    new String[]{Manifest.permission.CAMERA}, REQUEST_CODE_PERMISSION);
+            ActivityCompat.requestPermissions(
+                    this,
+                    new String[]{Manifest.permission.CAMERA},
+                    REQUEST_CODE_PERMISSION
+            );
+        } else {
+            initActivity();
+        }
+    }
+
+    @SuppressLint("TimberArgCount")
+    private void initActivity() {
+        // Retrieve token and expiry from SharedPreferences.
+        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
+        String appToken = prefs.getString("appToken", "");
+        long tokenExpiry = prefs.getLong("appTokenExpiry", 0);
+
+        // Check if token exists and is still valid.
+        if (appToken.isEmpty() || tokenExpiry == 0 || System.currentTimeMillis() > tokenExpiry) {
+            prefs.edit().remove("appToken").remove("appTokenExpiry").apply();
+            Toast.makeText(this, "Session expired. Please log in again.", Toast.LENGTH_SHORT).show();
+            startActivity(new Intent(this, LoginActivity.class));
+            finish();
+            return;
+        } else {
+            RetrofitClient.getInstance().setAuthToken(appToken);
         }
 
+        // Initialize ApiService and CategoryManager
         apiService = RetrofitClient.getInstance().create(ApiService.class);
+        categoryManager = new CategoryManager();
 
-        mainActivity = MainActivity.getInstance();
+        // Capture some basic device info
+        deviceInfo = getDeviceInfo();
 
-        openCamerabtn.setOnClickListener(v -> {
-            if (mainActivity != null && mainActivity.getIsGpsEnabled()) {
-                Intent cameraIntent = new Intent(this, CameraActivity.class);
-                if (cameraIntent.resolveActivity(getPackageManager()) != null) {
-                    startActivityForResult(cameraIntent, REQUEST_CAMERA_CAPTURE);
-                    mainActivity.setIsCameraActive(true);
-                    mainActivity.setHasGPSTurnedOffOnceWhileInCamera(false);
+        // Retrieve intent extras
+        imagePath = getIntent().getStringExtra("image_path");
+        boolean isRequestNewLocation = getIntent().getBooleanExtra("isRequestNewLocation", false);
+
+        if (isRequestNewLocation) {
+            // For a new location request, newLocationName is the category name
+            newLocationName = getIntent().getStringExtra("newLocationName");
+            if (newLocationName == null || newLocationName.isEmpty()) {
+                Toast.makeText(this, "New location (category) name is missing", Toast.LENGTH_SHORT).show();
+                returnToMain();
+                return;
+            }
+            // Create a new location, then category, then upload photo
+            createLocationThenCategoryAndUpload();
+        } else {
+            // Use existing category ID from intent
+            categoryId = getIntent().getIntExtra("category_id", -1);
+            if (categoryId == -1 || imagePath == null || imagePath.isEmpty()) {
+                Toast.makeText(this, "Required data missing.", Toast.LENGTH_SHORT).show();
+                returnToMain();
+                return;
+            }
+            // Directly upload photo
+            uploadPhoto(new File(imagePath), categoryId);
+        }
+    }
+
+    /**
+     * Creates a new location with dummy coordinates, then a category, then uploads the photo.
+     */
+    private void createLocationThenCategoryAndUpload() {
+        double latitude = 40.1234;   // Example lat
+        double longitude = 29.5678;  // Example lon
+
+        locationApiManager.createLocation(latitude, longitude, new Callback<LocationCreateResponse>() {
+            @Override
+            public void onResponse(@NonNull Call<LocationCreateResponse> call,
+                                   @NonNull Response<LocationCreateResponse> response) {
+                if (response.isSuccessful() && response.body() != null && response.body().getLocation() != null) {
+                    int locationId = Integer.parseInt(response.body().getLocation().getId());
+                    createCategory(locationId);
                 } else {
-                    Toast.makeText(this, "No Activity found to handle camera action", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(ApiActivity.this, "Location creation failed.", Toast.LENGTH_SHORT).show();
+                    returnToMain();
                 }
-            } else {
-                Toast.makeText(this,
-                        "Please turn on location services to be able to take a photo.",
-                        Toast.LENGTH_LONG).show();
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<LocationCreateResponse> call, @NonNull Throwable t) {
+                Toast.makeText(ApiActivity.this, "Network error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                returnToMain();
             }
         });
     }
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
+    /**
+     * Creates a new category for the given location, then uploads the photo.
+     */
+    private void createCategory(int locationId) {
+        // Build a CategoryRequest with the new location name
+        CategoryRequest categoryRequest = new CategoryRequest(
+                newLocationName,
+                "Unknown Address",
+                5.0,
+                locationId,
+                1
+        );
 
-        if (mainActivity != null) {
-            if (mainActivity.isCameraActivityFinishedProperly(requestCode, resultCode)) {
-                String imagePath = data.getStringExtra("image_path");
-                File photoFile = new File(imagePath);
-                uploadPhoto(photoFile);
-            } else {
-                Toast.makeText(this,
-                        "Camera activity did not finish properly or GPS was off.",
-                        Toast.LENGTH_SHORT).show();
+        apiService.createCategory(categoryRequest).enqueue(new Callback<CategoryResponse>() {
+            @Override
+            public void onResponse(@NonNull Call<CategoryResponse> call,
+                                   @NonNull Response<CategoryResponse> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    categoryId = Integer.parseInt(response.body().getId());
+                    uploadPhoto(new File(imagePath), categoryId);
+                } else {
+                    Toast.makeText(ApiActivity.this, "Category creation failed.", Toast.LENGTH_SHORT).show();
+                    returnToMain();
+                }
             }
-        } else {
-            Toast.makeText(this,
-                    "Something went wrong while handling the camera activity result",
-                    Toast.LENGTH_SHORT).show();
-        }
+
+            @Override
+            public void onFailure(@NonNull Call<CategoryResponse> call, @NonNull Throwable t) {
+                Toast.makeText(ApiActivity.this, "Network error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                returnToMain();
+            }
+        });
     }
 
-    private void uploadPhoto(File photoFile) {
-        if (photoFile == null) {
+    /**
+     * Uploads the photo with the given category ID and the required deviceInfo field.
+     */
+    private void uploadPhoto(File photoFile, int categoryId) {
+        if (!photoFile.exists()) {
+            Toast.makeText(this, "Photo file does not exist.", Toast.LENGTH_SHORT).show();
+            returnToMain();
             return;
         }
 
-        try {
-            RequestBody requestFile = RequestBody.create(MediaType.get("image/*"), photoFile);
-            MultipartBody.Part body = MultipartBody.Part.createFormData("photo", photoFile.getName(), requestFile);
+        // Build multipart parts
+        RequestBody requestFile = RequestBody.create(MediaType.get("image/jpeg"), photoFile);
+        MultipartBody.Part photoPart = MultipartBody.Part.createFormData("photo", photoFile.getName(), requestFile);
 
-            // Ensure your Retrofit client attaches the authentication token (appToken) to requests,
-            // for example, via an OkHttp interceptor.
-            Call<ResponseBody> call = apiService.uploadPhoto(body);
-            call.enqueue(new Callback<ResponseBody>() {
-                @Override
-                public void onResponse(Call<ResponseBody> call, Response<ResponseBody> response) {
-                    if (response.isSuccessful()) {
-                        if (response.body() != null) {
-                            try {
-                                String responseBody = response.body().string();
-                                Toast.makeText(ApiActivity.this, "Upload successful!", Toast.LENGTH_SHORT).show();
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
-                            }
-                        } else if (response.code() == 204) {
-                            Toast.makeText(ApiActivity.this, "Upload successful!", Toast.LENGTH_SHORT).show();
-                        }
-                    } else {
-                        Toast.makeText(ApiActivity.this, "Upload failed: " + response.code(), Toast.LENGTH_SHORT).show();
-                    }
-                }
+        RequestBody categoryIdBody = RequestBody.create(MediaType.get("text/plain"), String.valueOf(categoryId));
+        RequestBody deviceInfoBody = RequestBody.create(MediaType.get("text/plain"), deviceInfo);
 
-                @Override
-                public void onFailure(Call<ResponseBody> call, Throwable t) {
-                    Toast.makeText(ApiActivity.this, "Error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+        // Now call the uploadPhoto endpoint that expects "photo", "categoryId", and "deviceInfo"
+        apiService.uploadPhoto(photoPart, categoryIdBody, deviceInfoBody).enqueue(new Callback<ResponseBody>() {
+            @Override
+            public void onResponse(@NonNull Call<ResponseBody> call,
+                                   @NonNull Response<ResponseBody> response) {
+                if (response.isSuccessful()) {
+                    Toast.makeText(ApiActivity.this, "Upload successful!", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(ApiActivity.this, "Upload failed: " + response.message(), Toast.LENGTH_SHORT).show();
                 }
-            });
-        } catch (Exception e) {
-            Toast.makeText(this, "File error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                returnToMain();
+            }
+
+            @Override
+            public void onFailure(@NonNull Call<ResponseBody> call, @NonNull Throwable t) {
+                Toast.makeText(ApiActivity.this, "Network error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                returnToMain();
+            }
+        });
+    }
+
+    /**
+     * Returns a simple device info string. You can enhance this to gather real device details.
+     */
+    private String getDeviceInfo() {
+        // Example: manufacturer, model, OS version
+        String manufacturer = Build.MANUFACTURER;
+        String model = Build.MODEL;
+        String version = Build.VERSION.RELEASE;
+        return manufacturer + " " + model + " (Android " + version + ")";
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_CODE_PERMISSION && grantResults.length > 0 &&
+                grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            initActivity();
+        } else {
+            Toast.makeText(this, "Camera permission required.", Toast.LENGTH_SHORT).show();
+            returnToMain();
         }
+    }
+
+    private void returnToMain() {
+        startActivity(new Intent(this, MainActivity.class));
+        finish();
     }
 }
