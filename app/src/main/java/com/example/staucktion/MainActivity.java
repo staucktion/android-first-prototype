@@ -5,7 +5,6 @@ import static com.example.staucktion.R.layout.activity_main;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -13,13 +12,14 @@ import android.location.Address;
 import android.location.Geocoder;
 import android.location.LocationManager;
 import android.os.Bundle;
-import android.text.InputType;
+import android.view.View;
+import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -33,50 +33,59 @@ import com.example.staucktion.models.CategoryResponse;
 import com.example.staucktion.models.LocationCreateResponse;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 import timber.log.Timber;
 
+// Assume you have a StatusEnum defined somewhere, for example:
+class StatusEnum {
+    public static final int WAIT = 2; // WAIT status value
+}
+
 public class MainActivity extends AppCompatActivity {
 
     private static final int CAMERA_REQUEST_CODE = 100;
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 101;
-    private static MainActivity instance;
+    private static final int CAMERA_PERMISSION_REQUEST_CODE = 102;
+
     private LocationManager locationManager;
     private FusedLocationProviderClient fusedLocationClient;
 
-    // Coordinates obtained dynamically (fallback to dummy if necessary)
+    // Dynamically obtained coordinates
     private double currentLatitude = 0;
     private double currentLongitude = 0;
 
-    // Holds the category ID to use for the upload.
+    // Holds the selected category ID (if one is chosen)
     private int selectedCategoryId = -1;
+    // List to hold the loaded categories so we can map names to IDs
+    private List<CategoryResponse> loadedCategories = new ArrayList<>();
 
     private ApiService apiService;
     private LocationApiManager locationApiManager;
+    private AutoCompleteTextView categoryAutoCompleteTextView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(activity_main);
-        instance = this;
 
         Timber.plant(new Timber.DebugTree());
         Timber.i("Starting MainActivity");
 
-        // Token check to ensure the user is logged in
+        // Token check (if no valid token, redirect to LoginActivity)
         SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
         String appToken = prefs.getString("appToken", null);
         long tokenExpiry = prefs.getLong("appTokenExpiry", 0);
         if (appToken == null || tokenExpiry == 0 || System.currentTimeMillis() > tokenExpiry) {
-            prefs.edit().remove("appToken").remove("appTokenExpiry").apply();
+            prefs.edit().clear().apply();
             startActivity(new Intent(MainActivity.this, LoginActivity.class));
             finish();
             return;
@@ -90,7 +99,12 @@ public class MainActivity extends AppCompatActivity {
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
-        // Check for location permission before obtaining location
+        // Reference to AutoCompleteTextView in layout
+        categoryAutoCompleteTextView = findViewById(R.id.categoryAutoCompleteTextView);
+        Button openCameraBtn = findViewById(R.id.openCamerabtn);
+        Button profileBtn = findViewById(R.id.profilebtn);
+
+        // Load location and approved categories
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this,
@@ -100,19 +114,49 @@ public class MainActivity extends AppCompatActivity {
             getLastLocation();
         }
 
-        // Set up UI buttons
-        Button openCameraBtn = findViewById(R.id.openCamerabtn);
-        Button profileBtn = findViewById(R.id.profilebtn);
-
+        // Open Camera button click
         openCameraBtn.setOnClickListener(v -> {
-            // Use the obtained coordinates to check for an existing category.
-            checkCategoryAtCoordinates(currentLatitude, currentLongitude);
+            // First, check for camera permission
+            if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA)
+                    != PackageManager.PERMISSION_GRANTED) {
+                if (ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this, Manifest.permission.CAMERA)) {
+                    new MaterialAlertDialogBuilder(MainActivity.this)
+                            .setTitle("Camera Permission Needed")
+                            .setMessage("This app needs camera access to take photos. Please grant the permission.")
+                            .setPositiveButton("Allow", (dialog, which) -> ActivityCompat.requestPermissions(MainActivity.this,
+                                    new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION_REQUEST_CODE))
+                            .setNegativeButton("Cancel", (dialog, which) -> {
+                                dialog.dismiss();
+                                Toast.makeText(MainActivity.this, "Camera permission is required.", Toast.LENGTH_SHORT).show();
+                            })
+                            .show();
+                } else {
+                    ActivityCompat.requestPermissions(MainActivity.this,
+                            new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION_REQUEST_CODE);
+                }
+            } else {
+                // Check if the user has selected a category from the dropdown
+                String selectedName = categoryAutoCompleteTextView.getText().toString().trim();
+                if (!selectedName.isEmpty()) {
+                    // Look for the category in our loadedCategories list
+                    for (CategoryResponse cat : loadedCategories) {
+                        if (cat.getName().equalsIgnoreCase(selectedName)) {
+                            selectedCategoryId = Integer.parseInt(cat.getId());
+                            break;
+                        }
+                    }
+                    if (selectedCategoryId != -1) {
+                        launchCamera();
+                        return;
+                    }
+                }
+                // If no valid selection, prompt the user for a new category name
+                promptForCategoryNameAndCreateCategory(currentLatitude, currentLongitude);
+            }
         });
 
-        profileBtn.setOnClickListener(v -> {
-            Intent profileIntent = new Intent(MainActivity.this, ProfileActivity.class);
-            startActivity(profileIntent);
-        });
+        // Profile button
+        profileBtn.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, ProfileActivity.class)));
     }
 
     /**
@@ -124,29 +168,72 @@ public class MainActivity extends AppCompatActivity {
             if (location != null) {
                 currentLatitude = location.getLatitude();
                 currentLongitude = location.getLongitude();
-                Timber.i("Obtained location: lat=%f, lon=%f", currentLatitude, currentLongitude);
+                Timber.i("Obtained location: Latitude=%f, Longitude=%f", currentLatitude, currentLongitude);
             } else {
                 Timber.w("Location is null; using fallback dummy coordinates.");
                 currentLatitude = 40.1234;
                 currentLongitude = 29.5678;
             }
+            loadApprovedCategories(currentLatitude, currentLongitude);
         }).addOnFailureListener(e -> {
             Timber.e(e, "Failed to obtain location; using fallback dummy coordinates.");
             currentLatitude = 40.1234;
             currentLongitude = 29.5678;
+            loadApprovedCategories(currentLatitude, currentLongitude);
         });
+    }
+
+    private void loadApprovedCategories(double latitude, double longitude) {
+        apiService.getApprovedCategoriesByCoordinates(latitude, longitude, "APPROVE")
+                .enqueue(new Callback<List<CategoryResponse>>() {
+                    @Override
+                    public void onResponse(@NonNull Call<List<CategoryResponse>> call,
+                                           @NonNull Response<List<CategoryResponse>> response) {
+                        if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
+                            loadedCategories = response.body();
+                            updateSpinnerWithCategories(loadedCategories);
+                        } else {
+                            Timber.e("Category response unsuccessful or empty.");
+                            Toast.makeText(MainActivity.this, "No categories available for this location.", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(@NonNull Call<List<CategoryResponse>> call, @NonNull Throwable t) {
+                        Timber.e(t, "Error loading categories");
+                        Toast.makeText(MainActivity.this, "Failed to load categories.", Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }
+
+    private void updateSpinnerWithCategories(List<CategoryResponse> categories) {
+        List<String> names = new ArrayList<>();
+        for (CategoryResponse cat : categories) {
+            names.add(cat.getName());
+        }
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_dropdown_item_1line, names);
+        adapter.setDropDownViewResource(android.R.layout.simple_dropdown_item_1line);
+        categoryAutoCompleteTextView.setAdapter(adapter);
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
                                            @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, Objects.requireNonNull(permissions), grantResults);
-        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE && grantResults.length > 0 &&
-                grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            getLastLocation();
-        } else {
-            Toast.makeText(this, "Location permission required.", Toast.LENGTH_SHORT).show();
-            finish();
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                getLastLocation();
+            } else {
+                Toast.makeText(this, "Location permission required.", Toast.LENGTH_SHORT).show();
+                finish();
+            }
+        } else if (requestCode == CAMERA_PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Once camera permission is granted, proceed with checking category
+                checkCategoryAtCoordinates(currentLatitude, currentLongitude);
+            } else {
+                Toast.makeText(this, "Camera permission required.", Toast.LENGTH_SHORT).show();
+            }
         }
     }
 
@@ -159,12 +246,10 @@ public class MainActivity extends AppCompatActivity {
             public void onResponse(@NonNull Call<CategoryResponse> call,
                                    @NonNull Response<CategoryResponse> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    // Category exists – retrieve its ID.
                     selectedCategoryId = Integer.parseInt(response.body().getId());
                     Timber.i("Found existing category with ID: %d", selectedCategoryId);
                     launchCamera();
                 } else {
-                    // No category found; prompt for new category details.
                     Timber.i("No existing category found. Prompting for new location and category.");
                     promptForCategoryNameAndCreateCategory(latitude, longitude);
                 }
@@ -179,27 +264,27 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Prompts the user for a category name, then creates a new location and category.
+     * Prompts the user for a category name using a custom dialog layout.
+     * If the user enters a name, creates a new location and category.
      */
     private void promptForCategoryNameAndCreateCategory(final double latitude, final double longitude) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Enter Category Name");
+        // Inflate custom XML (dialog_category.xml) that defines an EditText with proper padding
+        View customView = getLayoutInflater().inflate(R.layout.dialog_category, null);
+        EditText input = customView.findViewById(R.id.editCategoryName);
 
-        final EditText input = new EditText(this);
-        input.setInputType(InputType.TYPE_CLASS_TEXT);
-        input.setHint("e.g., Cüneyt Hoca's Room");
-        builder.setView(input);
-
-        builder.setPositiveButton("OK", (DialogInterface dialog, int which) -> {
-            String categoryName = input.getText().toString().trim();
-            if (categoryName.isEmpty()) {
-                Toast.makeText(MainActivity.this, "Category name cannot be empty", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            createLocationAndCategory(latitude, longitude, categoryName);
-        });
-        builder.setNegativeButton("Cancel", (DialogInterface dialog, int which) -> dialog.cancel());
-        builder.show();
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Enter Category Name")
+                .setView(customView)
+                .setPositiveButton("OK", (dialog, which) -> {
+                    String categoryName = input.getText().toString().trim();
+                    if (categoryName.isEmpty()) {
+                        Toast.makeText(MainActivity.this, "Category name cannot be empty", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    createLocationAndCategory(latitude, longitude, categoryName);
+                })
+                .setNegativeButton("Cancel", (dialog, which) -> dialog.cancel())
+                .show();
     }
 
     /**
@@ -214,7 +299,7 @@ public class MainActivity extends AppCompatActivity {
                 if (response.isSuccessful() && response.body() != null && response.body().getLocation() != null) {
                     int locationId = Integer.parseInt(response.body().getLocation().getId());
                     Timber.i("Created new location with ID: %d", locationId);
-                    // Get address via reverse geocoding
+                    // Get address via reverse geocoding and then create category
                     getAddressFromCoordinates(latitude, longitude, address -> {
                         createCategory(locationId, categoryName, address);
                     });
@@ -235,14 +320,17 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * Creates a new category linked to the given location ID using the provided category name and address.
+     * The status is set dynamically based on photo status (here we assume WAIT status).
      */
     private void createCategory(int locationId, String categoryName, String address) {
+        int statusId = StatusEnum.WAIT; // For example, WAIT status value
+
         CategoryRequest request = new CategoryRequest(
                 categoryName,
                 address,
                 5.0,
                 locationId,
-                1
+                statusId
         );
 
         apiService.createCategory(request).enqueue(new Callback<CategoryResponse>() {
@@ -278,6 +366,7 @@ public class MainActivity extends AppCompatActivity {
             List<Address> addresses = geocoder.getFromLocation(latitude, longitude, 1);
             if (addresses != null && !addresses.isEmpty()) {
                 Address address = addresses.get(0);
+                Timber.i("Address obtained: %s", address.toString());
                 String addressText = address.getAddressLine(0);
                 listener.onAddressObtained(addressText);
             } else {

@@ -119,7 +119,7 @@ public class LoginActivity extends AppCompatActivity {
                     long expiresInMillis = authResponse.getExpiresInMillis(); // e.g., 3600000 for 1 hour.
                     if (expiresInMillis == 0) {
                         // Fallback to a default expiry time, e.g., 1 hour.
-                        expiresInMillis = 3600000;
+                        expiresInMillis = 9000000;
                     }
                     long expiryTimestamp = System.currentTimeMillis() + expiresInMillis;
 
