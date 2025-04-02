@@ -47,16 +47,6 @@ public interface ApiService {
     Call<List<CategoryResponse>> getCategoriesByLocationId(@Path("locationId") int locationId);
 
     /**
-     * Retrieves a single category by coordinates.
-     * Expected query parameters: "lat" and "lon".
-     */
-    @GET("web-api/categories/search/by-coordinates")
-    Call<CategoryResponse> getCategoryByCoordinates(
-            @Query("lat") double latitude,
-            @Query("lon") double longitude
-    );
-
-    /**
      * Retrieves approved categories by coordinates.
      * Expected query parameters: "latitude", "longitude" and "status".
      */

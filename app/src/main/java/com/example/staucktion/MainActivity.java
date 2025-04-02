@@ -116,6 +116,12 @@ public class MainActivity extends AppCompatActivity {
 
         // Open Camera button click
         openCameraBtn.setOnClickListener(v -> {
+            // Check if GPS is enabled before proceeding
+            if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                Toast.makeText(MainActivity.this, "GPS is turned off. Please enable GPS to use the camera.", Toast.LENGTH_LONG).show();
+                return;
+            }
+
             // First, check for camera permission
             if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA)
                     != PackageManager.PERMISSION_GRANTED) {
@@ -232,7 +238,7 @@ public class MainActivity extends AppCompatActivity {
                 // Once camera permission is granted, proceed with checking category
                 checkCategoryAtCoordinates(currentLatitude, currentLongitude);
             } else {
-                Toast.makeText(this, "Camera permission required.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(MainActivity.this, "Camera permission required.", Toast.LENGTH_SHORT).show();
             }
         }
     }
@@ -241,28 +247,36 @@ public class MainActivity extends AppCompatActivity {
      * Checks via your backend if an existing category exists for the given coordinates.
      */
     private void checkCategoryAtCoordinates(double latitude, double longitude) {
-        apiService.getCategoryByCoordinates(latitude, longitude).enqueue(new Callback<CategoryResponse>() {
-            @Override
-            public void onResponse(@NonNull Call<CategoryResponse> call,
-                                   @NonNull Response<CategoryResponse> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    selectedCategoryId = Integer.parseInt(response.body().getId());
-                    Timber.i("Found existing category with ID: %d", selectedCategoryId);
-                    launchCamera();
-                } else {
-                    Timber.i("No existing category found. Prompting for new location and category.");
-                    promptForCategoryNameAndCreateCategory(latitude, longitude);
-                }
-            }
+        // Check if GPS is enabled before proceeding
+        if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+            Toast.makeText(MainActivity.this, "GPS is turned off. Please enable GPS to use the camera.", Toast.LENGTH_LONG).show();
+            return;
+        }
 
-            @Override
-            public void onFailure(@NonNull Call<CategoryResponse> call, @NonNull Throwable t) {
-                Timber.e(t, "Error checking category by coordinates");
-                Toast.makeText(MainActivity.this, "Network error while checking category", Toast.LENGTH_SHORT).show();
-            }
-        });
+        apiService.getApprovedCategoriesByCoordinates(latitude, longitude, "APPROVE")
+                .enqueue(new Callback<List<CategoryResponse>>() {
+                    @Override
+                    public void onResponse(@NonNull Call<List<CategoryResponse>> call,
+                                           @NonNull Response<List<CategoryResponse>> response) {
+                        if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
+                            // Pick the first approved category from the list
+                            CategoryResponse approvedCategory = response.body().get(0);
+                            selectedCategoryId = Integer.parseInt(approvedCategory.getId());
+                            Timber.i("Found approved category with ID: %d", selectedCategoryId);
+                            launchCamera();
+                        } else {
+                            Timber.i("No approved category found. Prompting for new location and category.");
+                            promptForCategoryNameAndCreateCategory(latitude, longitude);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(@NonNull Call<List<CategoryResponse>> call, @NonNull Throwable t) {
+                        Timber.e(t, "Error checking approved categories by coordinates");
+                        Toast.makeText(MainActivity.this, "Network error while checking category", Toast.LENGTH_SHORT).show();
+                    }
+                });
     }
-
     /**
      * Prompts the user for a category name using a custom dialog layout.
      * If the user enters a name, creates a new location and category.
@@ -397,6 +411,13 @@ public class MainActivity extends AppCompatActivity {
 
         if (requestCode == CAMERA_REQUEST_CODE) {
             if (data != null && resultCode == RESULT_OK) {
+                // Before uploading, check if GPS is still enabled
+                if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                    categoryAutoCompleteTextView.setText("");
+                    Toast.makeText(MainActivity.this,
+                            "GPS is turned off. Upload failed. Please enable GPS.", Toast.LENGTH_LONG).show();
+                    return;
+                }
                 String imagePath = data.getStringExtra("image_path");
                 // Pass the image path and selectedCategoryId to ApiActivity for uploading.
                 Intent intent = new Intent(MainActivity.this, ApiActivity.class);

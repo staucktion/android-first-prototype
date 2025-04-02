@@ -35,6 +35,16 @@ public class LoginActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
 
+        // Check if there is a valid token in SharedPreferences.
+        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
+        String appToken = prefs.getString("appToken", null);
+        long tokenExpiry = prefs.getLong("appTokenExpiry", 0);
+        if (appToken != null && tokenExpiry != 0 && System.currentTimeMillis() < tokenExpiry) {
+            // Token is valid, proceed directly to MainActivity.
+            goToMainActivity();
+            return;
+        }
+
         // Configure Google Sign-In options with your Web Client ID.
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                 .requestIdToken(getString(R.string.web_client_id))
@@ -42,10 +52,9 @@ public class LoginActivity extends AppCompatActivity {
                 .build();
         googleSignInClient = GoogleSignIn.getClient(this, gso);
 
-        // Check if the user is already signed in.
+        // Check if the user is already signed in with Google.
         GoogleSignInAccount account = GoogleSignIn.getLastSignedInAccount(this);
         if (account != null) {
-            // User is already logged in, proceed to MainActivity.
             goToMainActivity();
             return;
         }
@@ -56,11 +65,9 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private void signIn() {
-        // Sign out to force account chooser every time.
-        googleSignInClient.signOut().addOnCompleteListener(task -> {
-            Intent signInIntent = googleSignInClient.getSignInIntent();
-            startActivityForResult(signInIntent, RC_SIGN_IN);
-        });
+        // No forced sign-out here—just launch the sign-in intent.
+        Intent signInIntent = googleSignInClient.getSignInIntent();
+        startActivityForResult(signInIntent, RC_SIGN_IN);
     }
 
     @SuppressLint("LogNotTimber")
@@ -118,8 +125,8 @@ public class LoginActivity extends AppCompatActivity {
                     // Compute the expiry timestamp.
                     long expiresInMillis = authResponse.getExpiresInMillis(); // e.g., 3600000 for 1 hour.
                     if (expiresInMillis == 0) {
-                        // Fallback to a default expiry time, e.g., 1 hour.
-                        expiresInMillis = 9000000;
+                        // Fallback to a default expiry time of 1 day (86,400,000 ms).
+                        expiresInMillis = 86400000;
                     }
                     long expiryTimestamp = System.currentTimeMillis() + expiresInMillis;
 
@@ -151,7 +158,6 @@ public class LoginActivity extends AppCompatActivity {
         });
     }
 
-    /**
     /**
      * Navigate to MainActivity and finish LoginActivity so the user cannot navigate back.
      */

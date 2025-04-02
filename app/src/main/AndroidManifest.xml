@@ -4,7 +4,6 @@
     package="com.example.staucktion">
 
     <!-- Permissions -->
-    <uses-feature android:name="android.permission.CAMERA" />
     <uses-feature
         android:name="android.hardware.camera"
         android:required="false" />
