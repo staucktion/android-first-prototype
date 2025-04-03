@@ -38,11 +38,15 @@ jobs:
                   versionName=$(./gradlew -q printVersionName)
                   echo "version=$versionName" >> $GITHUB_OUTPUT
 
+            - name: Rename APK with version
+              run: |
+                  mv app/build/outputs/apk/release/app-release.apk "Staucktion v${{ steps.version.outputs.versionName }}.apk"
+
             - name: Create GitHub Release
               uses: softprops/action-gh-release@v2
               with:
                   tag_name: v${{ steps.version.outputs.version }}
                   name: Release v${{ steps.version.outputs.version }}
-                  files: app/build/outputs/apk/release/app-release.apk
+                  files: "Staucktion v${{ steps.version.outputs.versionName }}.apk"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
