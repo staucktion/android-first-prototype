@@ -34,3 +34,19 @@ jobs:
               with:
                   name: signed-apk
                   path: app/build/outputs/apk/release/app-release.apk
+
+            - name: Comment with download link
+              if: success()
+              uses: actions/github-script@v6
+              with:
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+                  script: |
+                      const prNumber = context.issue.number;
+                      const runId = context.runId;
+                      const url = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
+                      github.rest.issues.createComment({
+                        issue_number: prNumber,
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        body: `✅ APK build is done! [Download it here](${url}) (look in "Artifacts" section)`
+                      });
