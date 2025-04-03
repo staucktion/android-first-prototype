@@ -27,30 +27,30 @@ public interface ApiService {
     Call<ResponseBody> getHealthStatus();
 
     @Multipart
-    @POST("web-api/photos")
+    @POST("photos")
     Call<ResponseBody> uploadPhoto(
             @Part MultipartBody.Part photo,
             @Part("categoryId") RequestBody categoryId,
             @Part("deviceInfo") RequestBody deviceInfo
     );
 
-    @POST("web-api/auth/google/android")
+    @POST("auth/google/android")
     Call<AuthResponse> loginWithGoogle(@Body AuthRequest authRequest);
 
-    @POST("web-api/locations")
+    @POST("locations")
     Call<LocationCreateResponse> createLocation(@Body LocationRequest locationRequest);
 
-    @POST("web-api/categories")
+    @POST("categories")
     Call<CategoryResponse> createCategory(@Body CategoryRequest categoryRequest);
 
-    @GET("web-api/locations/{locationId}/categories")
+    @GET("locations/{locationId}/categories")
     Call<List<CategoryResponse>> getCategoriesByLocationId(@Path("locationId") int locationId);
 
     /**
      * Retrieves approved categories by coordinates.
      * Expected query parameters: "latitude", "longitude" and "status".
      */
-    @GET("web-api/categories/search/by-coordinates")
+    @GET("categories/search/by-coordinates")
     Call<List<CategoryResponse>> getApprovedCategoriesByCoordinates(
             @Query("latitude") double latitude,
             @Query("longitude") double longitude,
