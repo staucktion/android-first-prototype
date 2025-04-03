@@ -30,6 +30,8 @@ public class RetrofitClient {
 
         // Build OkHttpClient with a CookieJar and interceptors
         OkHttpClient okHttpClient = new OkHttpClient.Builder()
+                // For bypassing hostname check when using SSL via IP connection instead of hostname
+                .hostnameVerifier((hostname, session) -> true)
                 .cookieJar(new CookieJar() {
                     private final HashMap<HttpUrl, List<Cookie>> cookieStore = new HashMap<>();
 
