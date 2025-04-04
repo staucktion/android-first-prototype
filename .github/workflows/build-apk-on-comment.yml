@@ -12,6 +12,10 @@ jobs:
         steps:
             - name: Checkout code
               uses: actions/checkout@v3
+              with:
+                  ref: ${{ github.event.issue.pull_request.head.ref }}
+                  repository: ${{ github.event.issue.pull_request.head.repo.full_name }}
+                  token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Set up JDK
               uses: actions/setup-java@v3
@@ -29,11 +33,15 @@ jobs:
             - name: Build release APK
               run: ./gradlew assembleRelease
 
+            - name: Rename APK with PR ID and run ID
+              run: |
+                  mv app/build/outputs/apk/release/app-release.apk "Staucktion-debug-${{ github.event.issue.number }}-${{ github.run_id }}.apk"
+
             - name: Upload APK
               uses: actions/upload-artifact@v4
               with:
-                  name: signed-apk
-                  path: app/build/outputs/apk/release/app-release.apk
+                  name: Staucktion-APK
+                  path: Staucktion-debug-${{ github.event.issue.number }}-${{ github.run_id }}.apk
 
             - name: Comment with download link
               if: success()
