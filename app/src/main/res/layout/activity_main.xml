@@ -7,9 +7,10 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:padding="24dp"
-    tools:context=".MainActivity"
-    android:background="?attr/colorSurface">
+    android:background="?attr/colorSurface"
+    tools:context=".MainActivity">
 
+    <!-- App Logo -->
     <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/staucktionLogo"
         android:layout_width="144dp"
@@ -17,13 +18,15 @@
         android:layout_marginTop="16dp"
         android:contentDescription="Staucktion Logo"
         android:src="@drawable/staucktion_logo"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:ignore="HardcodedText" />
 
+    <!-- App Title -->
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/staucktionTitle"
-        android:layout_width="0dp"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
         android:fontFamily="sans-serif-condensed"
@@ -31,11 +34,12 @@
         android:textColor="@color/primary_text"
         android:textSize="37sp"
         android:textStyle="bold"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/staucktionLogo"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/staucktionLogo" />
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:ignore="HardcodedText" />
 
-    <!-- Subtitle/Tagline -->
+    <!-- Subtitle / Tagline -->
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/subtitleText"
         android:layout_width="0dp"
@@ -44,9 +48,55 @@
         android:text="The best stock photos shared by creators and travelers."
         android:textColor="@color/primary_text"
         android:textSize="17sp"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/staucktionTitle"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/staucktionTitle" />
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:ignore="HardcodedText" />
+
+    <!-- Category Dropdown (Material Exposed Dropdown) -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/categoryDropdownLayout"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:hint="Select Category"
+        app:endIconMode="dropdown_menu"
+        app:boxBackgroundMode="outline"
+        app:layout_constraintTop_toBottomOf="@id/subtitleText"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:ignore="HardcodedText">
+
+        <com.google.android.material.textfield.MaterialAutoCompleteTextView
+            android:id="@+id/categoryAutoCompleteTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="none"
+            android:padding="20dp"
+            tools:ignore="SpeakableTextPresentCheck" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- New Category Input (Hidden by Default) -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/newCategoryInputLayout"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:hint="Enter new category name"
+        android:visibility="gone"
+        app:boxBackgroundMode="outline"
+        app:layout_constraintTop_toBottomOf="@id/categoryDropdownLayout"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:ignore="HardcodedText">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/newCategoryEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+    </com.google.android.material.textfield.TextInputLayout>
 
     <!-- Open Camera Button -->
     <com.google.android.material.button.MaterialButton
@@ -63,13 +113,14 @@
         android:textColor="@android:color/black"
         android:textSize="22sp"
         app:cornerRadius="8dp"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/newCategoryInputLayout"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/subtitleText"
+        app:layout_constraintEnd_toEndOf="parent"
         app:strokeColor="@color/black"
-        app:strokeWidth="2dp" />
+        app:strokeWidth="2dp"
+        tools:ignore="RtlHardcoded" />
 
-    <!-- Profile Section Button -->
+    <!-- Profile Button -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/profilebtn"
         android:layout_width="0dp"
@@ -84,10 +135,11 @@
         android:textColor="@android:color/white"
         android:textSize="22sp"
         app:cornerRadius="8dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/openCamerabtn"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:strokeColor="@color/black"
-        app:strokeWidth="2dp" />
+        app:strokeWidth="2dp"
+        tools:ignore="RtlHardcoded" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

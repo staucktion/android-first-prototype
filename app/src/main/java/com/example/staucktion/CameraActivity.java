@@ -1,48 +1,79 @@
 package com.example.staucktion;
 
-import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.Uri;
 import android.os.Bundle;
-import android.provider.MediaStore;
+import android.os.Environment;
 import android.widget.Toast;
-import androidx.annotation.Nullable;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
+
 import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+
 import timber.log.Timber;
 
-public class CameraActivity extends Activity {
-    private static final int REQUEST_IMAGE_CAPTURE = 1;
-    private String currentPhotoPath;
+public class CameraActivity extends AppCompatActivity {
+
+    private static final String FILE_PROVIDER_AUTHORITY = "com.example.staucktion.fileprovider";
     private static final String ACTION_KILL_CAMERA_ACTIVITY = "com.example.staucktion.KILL_CAMERA_ACTIVITY";
+
+    private String currentPhotoPath;
     private BroadcastReceiver killReceiver;
+    private ActivityResultLauncher<Uri> takePictureLauncher;
 
     @Override
-    protected void onCreate(@Nullable Bundle savedInstanceState) {
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Register a receiver to listen for the kill command (e.g., when GPS turns off)
         registerKillReceiver();
+
+        // Initialize the ActivityResultLauncher with the TakePicture contract.
+        takePictureLauncher = registerForActivityResult(
+                new ActivityResultContracts.TakePicture(),
+                result -> {
+                    if (result) {
+                        Timber.i("Image capture success, file path: %s", currentPhotoPath);
+                        Intent resultIntent = new Intent();
+                        resultIntent.putExtra("image_path", currentPhotoPath);
+                        setResult(RESULT_OK, resultIntent);
+                    } else {
+                        Timber.i("Image capture canceled or failed.");
+                        setResult(RESULT_CANCELED);
+                    }
+                    Timber.i("Finishing CameraActivity");
+                    finish();
+                }
+        );
+
+        // Start the process of capturing an image.
         dispatchTakePictureIntent();
         Timber.i("Starting CameraActivity");
     }
 
+    /**
+     * Registers a BroadcastReceiver to listen for an external broadcast
+     * to kill (finish) this activity.
+     */
     private void registerKillReceiver() {
         killReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 Timber.i("Received broadcast: %s", intent.getAction());
                 if (ACTION_KILL_CAMERA_ACTIVITY.equals(intent.getAction())) {
-                    Timber.i("Killing CameraActivity");
+                    Timber.i("Killing CameraActivity as requested.");
                     finish();
                 }
             }
         };
-
         IntentFilter filter = new IntentFilter(ACTION_KILL_CAMERA_ACTIVITY);
         registerReceiver(killReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
     }
@@ -55,50 +86,38 @@ public class CameraActivity extends Activity {
         }
     }
 
+    /**
+     * Creates the file to store the captured image and launches the camera.
+     */
     private void dispatchTakePictureIntent() {
-        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
-            File photoFile = null;
-            try {
-                photoFile = createImageFile();
-            } catch (IOException ex) {
-                Toast.makeText(this, "Error creating file", Toast.LENGTH_SHORT).show();
-            }
-            if (photoFile != null) {
-                Uri photoURI = FileProvider.getUriForFile(this,
-                        "com.example.staucktion.fileprovider",
-                        photoFile);
-                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
-                startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
-            }
-        }
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
-            Intent resultIntent = new Intent();
-            resultIntent.putExtra("image_path", currentPhotoPath);
-            Timber.i("Image capture success, return file path: %s", currentPhotoPath);
-            setResult(RESULT_OK, resultIntent);
-        } else {
-            Timber.i("Image capture failure, return cancel result");
+        File photoFile;
+        try {
+            photoFile = createImageFile();
+        } catch (IOException ex) {
+            Timber.e(ex, "Error creating image file");
+            Toast.makeText(this, "Error creating file", Toast.LENGTH_SHORT).show();
             setResult(RESULT_CANCELED);
+            finish();
+            return;
         }
-        Timber.i("Finishing CameraActivity");
-        finish();
+
+        // Create a content URI using FileProvider.
+        Uri photoURI = FileProvider.getUriForFile(this, FILE_PROVIDER_AUTHORITY, photoFile);
+        takePictureLauncher.launch(photoURI);
     }
 
+    /**
+     * Creates an image file with a unique timestamp-based name in the external pictures directory.
+     *
+     * @return The created image file.
+     * @throws IOException If file creation fails.
+     */
     private File createImageFile() throws IOException {
+        // Create an image file name with a timestamp.
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
         String imageFileName = "JPEG_" + timeStamp + "_";
-        File storageDir = getExternalFilesDir(null);
-        File image = File.createTempFile(
-                imageFileName,
-                ".jpg",
-                storageDir
-        );
+        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        File image = File.createTempFile(imageFileName, ".jpg", storageDir);
         currentPhotoPath = image.getAbsolutePath();
         return image;
     }
