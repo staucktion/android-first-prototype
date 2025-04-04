@@ -40,13 +40,13 @@ jobs:
 
             - name: Rename APK with version
               run: |
-                  mv app/build/outputs/apk/release/app-release.apk "Staucktion v${{ steps.version.outputs.versionName }}.apk"
+                  mv app/build/outputs/apk/release/app-release.apk "Staucktion v${{ steps.version.outputs.version }}.apk"
 
             - name: Create GitHub Release
               uses: softprops/action-gh-release@v2
               with:
                   tag_name: v${{ steps.version.outputs.version }}
                   name: Release v${{ steps.version.outputs.version }}
-                  files: "Staucktion v${{ steps.version.outputs.versionName }}.apk"
+                  files: "Staucktion v${{ steps.version.outputs.version }}.apk"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
