@@ -1,0 +1,52 @@
+name: Build Release APK on PR Comment
+
+on:
+    issue_comment:
+        types: [created]
+
+jobs:
+    build:
+        if: github.event.issue.pull_request != null && github.event.comment.body == '/build-apk'
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v3
+
+            - name: Set up JDK
+              uses: actions/setup-java@v3
+              with:
+                  distribution: "zulu"
+                  java-version: "17"
+
+            - name: Recreate keystore.properties
+              run: |
+                  echo "${{ secrets.KEYSTORE_PROPERTIES }}" > keystore.properties
+
+            - name: Set up Gradle
+              uses: gradle/gradle-build-action@v2
+
+            - name: Build release APK
+              run: ./gradlew assembleRelease
+
+            - name: Upload APK
+              uses: actions/upload-artifact@v4
+              with:
+                  name: signed-apk
+                  path: app/build/outputs/apk/release/app-release.apk
+
+            - name: Comment with download link
+              if: success()
+              uses: actions/github-script@v6
+              with:
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+                  script: |
+                      const prNumber = context.issue.number;
+                      const runId = context.runId;
+                      const url = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}`;
+                      github.rest.issues.createComment({
+                        issue_number: prNumber,
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        body: `✅ APK build is done! [Download it here](${url}) (look in "Artifacts" section)`
+                      });
