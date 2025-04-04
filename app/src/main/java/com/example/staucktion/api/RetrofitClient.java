@@ -19,7 +19,8 @@ import retrofit2.converter.scalars.ScalarsConverterFactory;
 
 public class RetrofitClient {
     private static RetrofitClient instance;
-    private static final String BASE_URL = "https://staucktion.com.tr/";
+    // Change domain to local IP address when developing locally
+    private static final String BASE_URL = "https://staucktion.com.tr/web-api/";
     private final Retrofit retrofit;
     private String authToken;  // dynamically updated after login
 
@@ -30,6 +31,8 @@ public class RetrofitClient {
 
         // Build OkHttpClient with a CookieJar and interceptors
         OkHttpClient okHttpClient = new OkHttpClient.Builder()
+                // For bypassing hostname check when using SSL via IP connection instead of hostname
+                .hostnameVerifier((hostname, session) -> true)
                 .cookieJar(new CookieJar() {
                     private final HashMap<HttpUrl, List<Cookie>> cookieStore = new HashMap<>();
 
