@@ -10,11 +10,27 @@ jobs:
         runs-on: ubuntu-latest
 
         steps:
+            - name: Get PR branch + commit SHA
+              id: pr_info
+              uses: actions/github-script@v6
+              with:
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+                  script: |
+                      const pr = await github.rest.pulls.get({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        pull_number: context.issue.number
+                      });
+
+                      core.setOutput('ref', pr.data.head.ref);
+                      core.setOutput('repo', pr.data.head.repo.full_name);
+                      core.setOutput('sha', pr.data.head.sha);
+
             - name: Checkout code
               uses: actions/checkout@v3
               with:
-                  ref: ${{ github.event.issue.pull_request.head.ref }}
-                  repository: ${{ github.event.issue.pull_request.head.repo.full_name }}
+                  ref: ${{ steps.pr_info.outputs.sha }}
+                  repository: ${{ steps.pr_info.outputs.repo }}
                   token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Set up JDK
