@@ -33,9 +33,9 @@ jobs:
             - name: Build release APK
               run: ./gradlew assembleRelease
 
-            - name: Rename APK with PR ID and run ID
+            - name: Rename APK with PR ID and run ID and move to root
               run: |
-                  mv app/build/outputs/apk/release/app-release.apk "Staucktion-debug-${{ github.event.issue.number }}-${{ github.run_id }}.apk"
+                  mv app/build/outputs/apk/release/app-release.apk $GITHUB_WORKSPACE/Staucktion-debug-${{ github.event.issue.number }}-${{ github.run_id }}.apk
 
             - name: Upload APK
               uses: actions/upload-artifact@v4
@@ -75,7 +75,7 @@ jobs:
                       const downloadUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}/artifacts/${artifactId}`;
 
                       github.rest.issues.createComment({
-                        issue_number: prNumber,
+                          issue_number: prNumber,
                           owner,
                           repo,
                           body: `✅ APK build is done!\n\n📦 [Download APK directly](${downloadUrl})`
