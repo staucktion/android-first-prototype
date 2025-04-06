@@ -20,7 +20,7 @@ android {
         minSdk = 33
         targetSdk = 34
         versionCode = 1
-        versionName = "1.6.1-test"
+        versionName = "1.7.1-test"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -82,7 +82,7 @@ dependencies {
     implementation ("com.github.bumptech.glide:glide:4.13.0")
     annotationProcessor ("com.github.bumptech.glide:compiler:4.13.0")
     implementation ("com.squareup.okhttp3:logging-interceptor:4.12.0")
-    implementation ("com.google.android.gms:play-services-location:21.0.1")
+    implementation ("com.google.android.gms:play-services-location:21.2.0")
 
 
 

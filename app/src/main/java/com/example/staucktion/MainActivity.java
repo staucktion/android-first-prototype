@@ -1,17 +1,18 @@
 package com.example.staucktion;
 
-import static com.example.staucktion.R.layout.activity_main;
-
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.os.Looper;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
@@ -32,6 +33,9 @@ import com.example.staucktion.models.CategoryRequest;
 import com.example.staucktion.models.CategoryResponse;
 import com.example.staucktion.models.LocationCreateResponse;
 import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -39,6 +43,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -72,11 +77,47 @@ public class MainActivity extends AppCompatActivity {
     private LocationApiManager locationApiManager;
     private AutoCompleteTextView categoryAutoCompleteTextView;
 
+    // Flag to indicate if location was ever disabled during the camera session.
+    // This flag is now also persisted in SharedPreferences.
+    private boolean locationWasDisabled = false;
+
+    // BroadcastReceiver to detect location provider changes
+    private final BroadcastReceiver locationChangeReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                // GPS was disabled at some point; set the flag and persist it
+                locationWasDisabled = true;
+                SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
+                prefs.edit().putBoolean("gpsDisabledDuringCamera", true).apply();
+
+                Intent killIntent = new Intent("com.example.staucktion.KILL_CAMERA_ACTIVITY");
+                sendBroadcast(killIntent);
+            }
+        }
+    };
+
+    // Additionally, refresh categories every time the activity resumes:
+    @Override
+    protected void onResume() {
+        super.onResume();
+        registerReceiver(locationChangeReceiver, new IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION));
+
+        // Refresh categories automatically on resume
+        refreshCategories();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Unregister the receiver when the activity is paused.
+        unregisterReceiver(locationChangeReceiver);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(activity_main);
-
+        setContentView(R.layout.activity_main);
         Timber.plant(new Timber.DebugTree());
         Timber.i("Starting MainActivity");
 
@@ -156,7 +197,7 @@ public class MainActivity extends AppCompatActivity {
                         return;
                     }
                 }
-                // If no valid selection, prompt the user for a new category name
+                // If no valid selection, prompt the user for a new category name.
                 promptForCategoryNameAndCreateCategory(currentLatitude, currentLongitude);
             }
         });
@@ -170,23 +211,43 @@ public class MainActivity extends AppCompatActivity {
      */
     @SuppressLint("MissingPermission")
     private void getLastLocation() {
-        fusedLocationClient.getLastLocation().addOnSuccessListener(location -> {
-            if (location != null) {
-                currentLatitude = location.getLatitude();
-                currentLongitude = location.getLongitude();
-                Timber.i("Obtained location: Latitude=%f, Longitude=%f", currentLatitude, currentLongitude);
-            } else {
-                Timber.w("Location is null; using fallback dummy coordinates.");
-                currentLatitude = 40.1234;
-                currentLongitude = 29.5678;
+        LocationRequest locationRequest = LocationRequest.create()
+                .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
+                .setInterval(5000)
+                .setFastestInterval(2000);
+
+        fusedLocationClient.requestLocationUpdates(locationRequest, new LocationCallback() {
+            @Override
+            public void onLocationResult(LocationResult locationResult) {
+                super.onLocationResult(locationResult);
+                fusedLocationClient.removeLocationUpdates(this);
+
+                if (locationResult != null && locationResult.getLastLocation() != null) {
+                    currentLatitude = locationResult.getLastLocation().getLatitude();
+                    currentLongitude = locationResult.getLastLocation().getLongitude();
+                    Timber.i("Fresh location obtained: Lat=%f, Lng=%f", currentLatitude, currentLongitude);
+                    loadApprovedCategories(currentLatitude, currentLongitude);
+                } else {
+                    Timber.w("Failed to obtain fresh location.");
+                    showLocationErrorDialog();
+                }
             }
-            loadApprovedCategories(currentLatitude, currentLongitude);
-        }).addOnFailureListener(e -> {
-            Timber.e(e, "Failed to obtain location; using fallback dummy coordinates.");
-            currentLatitude = 40.1234;
-            currentLongitude = 29.5678;
-            loadApprovedCategories(currentLatitude, currentLongitude);
-        });
+        }, Looper.getMainLooper());
+    }
+
+    private void showLocationErrorDialog() {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Location Not Available")
+                .setMessage("Could not obtain location. Please check your location services or try again.")
+                .setPositiveButton("Retry", (dialog, which) -> {
+                    dialog.dismiss();
+                    getLastLocation();
+                })
+                .setNegativeButton("Go Back", (dialog, which) -> {
+                    dialog.dismiss();
+                    finish();
+                })
+                .show();
     }
 
     private void loadApprovedCategories(double latitude, double longitude) {
@@ -225,7 +286,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
                                            @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        super.onRequestPermissionsResult(requestCode,
+                Objects.requireNonNull(permissions),
+                grantResults);
         if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 getLastLocation();
@@ -277,12 +340,12 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
     }
+
     /**
      * Prompts the user for a category name using a custom dialog layout.
      * If the user enters a name, creates a new location and category.
      */
     private void promptForCategoryNameAndCreateCategory(final double latitude, final double longitude) {
-        // Inflate custom XML (dialog_category.xml) that defines an EditText with proper padding
         View customView = getLayoutInflater().inflate(R.layout.dialog_category, null);
         EditText input = customView.findViewById(R.id.editCategoryName);
 
@@ -337,7 +400,7 @@ public class MainActivity extends AppCompatActivity {
      * The status is set dynamically based on photo status (here we assume WAIT status).
      */
     private void createCategory(int locationId, String categoryName, String address) {
-        int statusId = StatusEnum.WAIT; // For example, WAIT status value
+        int statusId = StatusEnum.WAIT;
 
         CategoryRequest request = new CategoryRequest(
                 categoryName,
@@ -372,7 +435,6 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * Uses Android's Geocoder to convert latitude and longitude into a human-readable address.
-     * Calls the provided listener with the obtained address, or "Unknown Address" on failure.
      */
     private void getAddressFromCoordinates(double latitude, double longitude, OnAddressObtainedListener listener) {
         Geocoder geocoder = new Geocoder(this, Locale.getDefault());
@@ -397,35 +459,69 @@ public class MainActivity extends AppCompatActivity {
      * which then passes the image path and category ID to ApiActivity for uploading.
      */
     private void launchCamera() {
+        // Reset GPS flags before starting the camera
+        locationWasDisabled = false;
+        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
+        prefs.edit()
+                .putBoolean("gpsDisabledDuringCamera", false)
+                .putBoolean("gpsStatusOnCameraStart", locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER))
+                .apply();
+
         Intent cameraIntent = new Intent(MainActivity.this, CameraActivity.class);
-        PackageManager packageManager = getPackageManager();
-        if (cameraIntent.resolveActivity(packageManager) != null) {
+        if (cameraIntent.resolveActivity(getPackageManager()) != null) {
             startActivityForResult(cameraIntent, CAMERA_REQUEST_CODE);
         }
     }
 
+    // Add this method to clearly separate loading logic.
+    private void refreshCategories() {
+        if (currentLatitude != 0 && currentLongitude != 0) {
+            loadApprovedCategories(currentLatitude, currentLongitude);
+        } else {
+            getLastLocation(); // Ensure we have fresh coordinates if needed.
+        }
+    }
+
+    // Call refreshCategories() whenever camera or upload finishes successfully.
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        Timber.d("onActivityResult called with requestCode: %d, resultCode: %d", requestCode, resultCode);
 
         if (requestCode == CAMERA_REQUEST_CODE) {
-            if (data != null && resultCode == RESULT_OK) {
-                // Before uploading, check if GPS is still enabled
-                if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                    categoryAutoCompleteTextView.setText("");
+            if (resultCode == RESULT_OK && data != null) {
+                // Perform the GPS flag checks as before.
+                SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
+                boolean gpsStatusAtStart = prefs.getBoolean("gpsStatusOnCameraStart", true);
+                boolean gpsDisabledDuringCamera = prefs.getBoolean("gpsDisabledDuringCamera", false);
+                boolean gpsStatusNow = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
+
+                if (!gpsStatusAtStart || locationWasDisabled || gpsDisabledDuringCamera || !gpsStatusNow) {
                     Toast.makeText(MainActivity.this,
-                            "GPS is turned off. Upload failed. Please enable GPS.", Toast.LENGTH_LONG).show();
-                    return;
+                            "GPS was disabled during photo capture. Upload failed. Please enable GPS and try again.",
+                            Toast.LENGTH_LONG).show();
+                    categoryAutoCompleteTextView.setText(""); // reset UI if necessary
+                    return;  // Stop here, prevent upload!
                 }
+
                 String imagePath = data.getStringExtra("image_path");
-                // Pass the image path and selectedCategoryId to ApiActivity for uploading.
                 Intent intent = new Intent(MainActivity.this, ApiActivity.class);
                 intent.putExtra("image_path", imagePath);
                 intent.putExtra("category_id", selectedCategoryId);
                 startActivity(intent);
+
+                // Immediately refresh categories when returning
+                refreshCategories();
             } else {
-                Toast.makeText(MainActivity.this, "Camera activity did not finish properly or no image data was returned.", Toast.LENGTH_SHORT).show();
+                // Check if the cancellation was due to GPS being disabled.
+                boolean gpsDisabled = data != null && data.getBooleanExtra("gps_disabled", false);
+                if (gpsDisabled) {
+                    Toast.makeText(MainActivity.this,
+                            "GPS has been turned off during photo capture. This app requires GPS to ensure accurate location data. " +
+                                    "Upload failed. Please enable GPS and try again.",
+                            Toast.LENGTH_LONG).show();
+                } else {
+                    Toast.makeText(MainActivity.this, "Camera activity failed or canceled.", Toast.LENGTH_SHORT).show();
+                }
             }
         }
     }
