@@ -3,7 +3,7 @@
     <string name="gps_is_on">GPS is ON</string>
     <string name="gps_is_off">GPS is OFF</string>
     <string name="web_client_id">915340788300-eu7tgguv90ghc9horj0rmqc7fe3t3qh0.apps.googleusercontent.com</string>
-    <string name="edit_profile">Edit Profile</string>
+    <string name="home_page">Home Page</string>
     <string name="logout">Logout</string>
     <string name="user_name">John Doe</string>
     <string name="user_email">john.doe@example.com</string>

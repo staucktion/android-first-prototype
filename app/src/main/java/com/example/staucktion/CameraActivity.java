@@ -79,7 +79,7 @@ public class CameraActivity extends AppCompatActivity {
             }
         };
         IntentFilter filter = new IntentFilter(ACTION_KILL_CAMERA_ACTIVITY);
-        registerReceiver(killReceiver, filter);
+        registerReceiver(killReceiver, filter, RECEIVER_NOT_EXPORTED);
     }
 
     /**

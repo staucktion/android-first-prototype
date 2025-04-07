@@ -50,6 +50,9 @@ import retrofit2.Callback;
 import retrofit2.Response;
 import timber.log.Timber;
 
+import android.os.Handler;
+import android.os.Looper;
+
 // Assume you have a StatusEnum defined somewhere, for example:
 class StatusEnum {
     public static final int WAIT = 2; // WAIT status value
@@ -81,12 +84,23 @@ public class MainActivity extends AppCompatActivity {
     // This flag is now also persisted in SharedPreferences.
     private boolean locationWasDisabled = false;
 
-    // BroadcastReceiver to detect location provider changes
+    // Add a Handler and Runnable for periodic category refresh
+    private Handler categoryHandler = new Handler(Looper.getMainLooper());
+    private Runnable categoryRefreshRunnable = new Runnable() {
+        @Override
+        public void run() {
+            refreshCategories();
+            // Schedule the next refresh in 10 seconds (adjust the delay as needed)
+            categoryHandler.postDelayed(this, 10000);
+        }
+    };
+
+    // BroadcastReceiver for location changes remains unchanged
     private final BroadcastReceiver locationChangeReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                // GPS was disabled at some point; set the flag and persist it
+                // GPS was disabled; update the flag and broadcast a kill intent.
                 locationWasDisabled = true;
                 SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
                 prefs.edit().putBoolean("gpsDisabledDuringCamera", true).apply();
@@ -101,17 +115,23 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        // Register the location change receiver
         registerReceiver(locationChangeReceiver, new IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION));
 
-        // Refresh categories automatically on resume
+        // Start the periodic category refresh
+        categoryHandler.post(categoryRefreshRunnable);
+
+        // Optionally, do an immediate refresh
         refreshCategories();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        // Unregister the receiver when the activity is paused.
+        // Unregister the location change receiver
         unregisterReceiver(locationChangeReceiver);
+        // Remove pending callbacks to avoid memory leaks or unwanted updates when activity is paused
+        categoryHandler.removeCallbacks(categoryRefreshRunnable);
     }
 
     @Override
