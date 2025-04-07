@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
@@ -28,20 +29,23 @@ public class CameraActivity extends AppCompatActivity {
 
     private String currentPhotoPath;
     private BroadcastReceiver killReceiver;
+    private BroadcastReceiver gpsStateReceiver;
     private ActivityResultLauncher<Uri> takePictureLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Register a receiver to listen for the kill command (e.g., when GPS turns off)
+        // Register a receiver to listen for external kill commands
         registerKillReceiver();
+        // Register a receiver to listen for GPS state changes
+        registerGpsStateReceiver();
 
         // Initialize the ActivityResultLauncher with the TakePicture contract.
         takePictureLauncher = registerForActivityResult(
                 new ActivityResultContracts.TakePicture(),
                 result -> {
                     if (result) {
-                        Timber.i("Image capture success, file path: %s", currentPhotoPath);
+                        Timber.i("Image capture successful, file path: %s", currentPhotoPath);
                         Intent resultIntent = new Intent();
                         resultIntent.putExtra("image_path", currentPhotoPath);
                         setResult(RESULT_OK, resultIntent);
@@ -60,8 +64,7 @@ public class CameraActivity extends AppCompatActivity {
     }
 
     /**
-     * Registers a BroadcastReceiver to listen for an external broadcast
-     * to kill (finish) this activity.
+     * Registers a BroadcastReceiver to listen for external "KILL_CAMERA_ACTIVITY" actions.
      */
     private void registerKillReceiver() {
         killReceiver = new BroadcastReceiver() {
@@ -70,19 +73,50 @@ public class CameraActivity extends AppCompatActivity {
                 Timber.i("Received broadcast: %s", intent.getAction());
                 if (ACTION_KILL_CAMERA_ACTIVITY.equals(intent.getAction())) {
                     Timber.i("Killing CameraActivity as requested.");
+                    CameraActivity.this.setResult(RESULT_CANCELED);
                     finish();
                 }
             }
         };
         IntentFilter filter = new IntentFilter(ACTION_KILL_CAMERA_ACTIVITY);
-        registerReceiver(killReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        registerReceiver(killReceiver, filter, RECEIVER_NOT_EXPORTED);
     }
 
+    /**
+     * Registers a BroadcastReceiver to listen for GPS state changes.
+     */
+    private void registerGpsStateReceiver() {
+        gpsStateReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (LocationManager.PROVIDERS_CHANGED_ACTION.equals(intent.getAction())) {
+                    LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+                    boolean gpsEnabled = locationManager != null && locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
+                    if (!gpsEnabled) {
+                        Toast.makeText(CameraActivity.this,
+                                "GPS has been turned off during photo capture. This app requires GPS to ensure accurate location data. " +
+                                        "The photo capture process is canceled. Please enable GPS and try again.",
+                                Toast.LENGTH_LONG).show();
+                        // Set an extra flag to indicate GPS cancellation.
+                        Intent resultIntent = new Intent();
+                        resultIntent.putExtra("gps_disabled", true);
+                        CameraActivity.this.setResult(RESULT_CANCELED, resultIntent);
+                        finish();
+                    }
+                }
+            }
+        };
+        IntentFilter filter = new IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION);
+        registerReceiver(gpsStateReceiver, filter);
+    }
     @Override
     protected void onDestroy() {
         super.onDestroy();
         if (killReceiver != null) {
             unregisterReceiver(killReceiver);
+        }
+        if (gpsStateReceiver != null) {
+            unregisterReceiver(gpsStateReceiver);
         }
     }
 

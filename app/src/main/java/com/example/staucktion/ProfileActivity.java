@@ -31,7 +31,7 @@ public class ProfileActivity extends AppCompatActivity {
         profileImage = findViewById(R.id.profileImage);
         profileName = findViewById(R.id.profileName);
         profileEmail = findViewById(R.id.profileEmail);
-        Button btnEditProfile = findViewById(R.id.btnEditProfile);
+        Button btnEditProfile = findViewById(R.id.btnHomePage);
         Button btnLogout = findViewById(R.id.btnLogout);
 
         // Configure Google Sign-In options and client.
@@ -44,10 +44,9 @@ public class ProfileActivity extends AppCompatActivity {
         loadUserProfile();
 
         btnEditProfile.setOnClickListener(v -> {
-            Log.d("ProfileActivity", "Edit Profile button clicked");
-            Toast.makeText(ProfileActivity.this, "Edit Profile clicked", Toast.LENGTH_SHORT).show();
-            // Uncomment if you have an EditProfileActivity:
-            // startActivity(new Intent(ProfileActivity.this, EditProfileActivity.class));
+            Intent intent = new Intent(ProfileActivity.this, MainActivity.class);
+            startActivity(intent);
+            finish();
         });
 
         btnLogout.setOnClickListener(v -> {

@@ -73,7 +73,9 @@ public class LoginActivity extends AppCompatActivity {
     @SuppressLint("LogNotTimber")
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
+        super.onActivityResult(requestCode,
+                resultCode,
+                data);
         if (requestCode == RC_SIGN_IN) {
             if (data == null) {
                 Timber.w("Received null data in onActivityResult");
@@ -95,7 +97,7 @@ public class LoginActivity extends AppCompatActivity {
                     editor.apply();
 
                     Timber.d("Google sign-in successful, idToken: %s", idToken);
-                    Toast.makeText(LoginActivity.this, "Log in successful", Toast.LENGTH_SHORT).show();
+                    //Toast.makeText(LoginActivity.this, "Log in successful", Toast.LENGTH_SHORT).show();
 
                     // Send the token to your backend for further authentication.
                     sendTokenToBackend(idToken);
