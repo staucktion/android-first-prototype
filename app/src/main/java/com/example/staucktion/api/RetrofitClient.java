@@ -6,6 +6,7 @@ import com.google.gson.GsonBuilder;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import okhttp3.Cookie;
 import okhttp3.CookieJar;
@@ -64,6 +65,10 @@ public class RetrofitClient {
                     return chain.proceed(request);
                 })
                 .addInterceptor(logging)
+                // timeout settings
+                .connectTimeout(30, TimeUnit.SECONDS)  // Connection timeout
+                .readTimeout(30, TimeUnit.SECONDS)     // Read timeout
+                .writeTimeout(30, TimeUnit.SECONDS)    // Write timeout
                 .build();
 
         Gson gson = new GsonBuilder().setLenient().create();
