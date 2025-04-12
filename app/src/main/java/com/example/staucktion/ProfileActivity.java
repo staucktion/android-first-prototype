@@ -26,39 +26,43 @@ public class ProfileActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_profile);
+        setContentView(R.layout.activity_profile); // Your profile layout (activity_profile.xml)
 
+        // Initialize views
         profileImage = findViewById(R.id.profileImage);
         profileName = findViewById(R.id.profileName);
         profileEmail = findViewById(R.id.profileEmail);
-        Button btnEditProfile = findViewById(R.id.btnHomePage);
+        Button btnHomePage = findViewById(R.id.btnHomePage);
         Button btnLogout = findViewById(R.id.btnLogout);
 
-        // Configure Google Sign-In options and client.
+        // Configure Google Sign-In options and get the client.
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                 .requestIdToken(getString(R.string.web_client_id))
                 .requestEmail()
                 .build();
         googleSignInClient = GoogleSignIn.getClient(this, gso);
 
+        // Load the profile data (user name, email, photo URL) from SharedPreferences.
         loadUserProfile();
 
-        btnEditProfile.setOnClickListener(v -> {
+        // Button to go back to MainActivity (if needed)
+        btnHomePage.setOnClickListener(v -> {
             Intent intent = new Intent(ProfileActivity.this, MainActivity.class);
             startActivity(intent);
             finish();
         });
 
+        // Logout button click listener.
         btnLogout.setOnClickListener(v -> {
             Log.d("ProfileActivity", "Logout button clicked");
-            // Clear SharedPreferences.
+            // Clear user data from SharedPreferences.
             SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
             prefs.edit().clear().apply();
 
             // Sign out from Google.
             googleSignInClient.signOut().addOnCompleteListener(task -> {
                 Toast.makeText(ProfileActivity.this, "Logged out", Toast.LENGTH_SHORT).show();
-                // Redirect to LoginActivity.
+                // Redirect to LoginActivity after logout.
                 Intent intent = new Intent(ProfileActivity.this, LoginActivity.class);
                 startActivity(intent);
                 finish();
@@ -75,7 +79,7 @@ public class ProfileActivity extends AppCompatActivity {
         profileName.setText(name);
         profileEmail.setText(email);
 
-        // Load the profile image using Glide if a URL exists; otherwise, use a default drawable.
+        // If there is a photo URL, load it with Glide; otherwise, use a default placeholder.
         if (!photoUrl.isEmpty()) {
             Glide.with(this)
                     .load(photoUrl)

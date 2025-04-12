@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Base application theme -->
+    <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Primary brand color -->
+        <item name="colorPrimary">@color/black</item>
+        <!-- Darker variant for status bar / toolbar -->
+        <item name="colorPrimaryVariant">@color/purple_700</item>
+        <!-- Text/icon color on primary surfaces -->
+        <item name="colorOnPrimary">@android:color/white</item>
+        <!-- Background for your screens -->
+        <item name="colorSurface">@android:color/white</item>
+        <!-- Text/icon color on surfaces -->
+        <item name="colorOnSurface">@android:color/white</item>
+    </style>
+
+</resources>

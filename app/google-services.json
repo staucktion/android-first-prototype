@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "395497014832",
+    "project_id": "staucktion",
+    "storage_bucket": "staucktion.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:395497014832:android:8a1b0db62d82243dd1cff5",
+        "android_client_info": {
+          "package_name": "com.example.staucktion"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEDA9qvDbMJD-HahSb63RueWIqMPJyeiQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
