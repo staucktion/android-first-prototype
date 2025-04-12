@@ -21,7 +21,7 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="@color/black"
-            app:title="Staucktion"
+            app:title="@string/app_name"
             app:titleTextColor="@android:color/white"
             app:layout_scrollFlags="scroll|enterAlways"
             app:contentInsetStartWithNavigation="0dp">
@@ -116,7 +116,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
-                android:hint="Enter new category name"
+                android:hint="@string/enter_new_category"
                 android:visibility="gone"
                 app:boxBackgroundMode="outline"
                 app:layout_constraintEnd_toEndOf="parent"
