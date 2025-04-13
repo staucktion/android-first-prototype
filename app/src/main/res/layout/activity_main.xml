@@ -9,24 +9,23 @@
     android:background="?attr/colorSurface"
     tools:context=".MainActivity">
 
-    <!-- AppBar (holds the black toolbar) -->
+    <!-- AppBar with toolbar using theme attributes -->
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:theme="@style/ThemeOverlay.MaterialComponents.ActionBar">
 
-        <!-- Material Toolbar -->
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/topAppBar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            android:background="@color/black"
+            android:background="?attr/colorPrimary"
             app:title="@string/app_name"
-            app:titleTextColor="@android:color/white"
+            app:titleTextColor="?attr/colorOnPrimary"
             app:layout_scrollFlags="scroll|enterAlways"
             app:contentInsetStartWithNavigation="0dp">
 
-            <!-- Right-side container for avatar and logout icons -->
+            <!-- Right-side container: text avatar and logout icon -->
             <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="match_parent"
@@ -34,7 +33,7 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
-                <!-- Text-based Avatar -->
+                <!-- Text Avatar -->
                 <TextView
                     android:id="@+id/textAvatar"
                     android:layout_width="40dp"
@@ -42,12 +41,12 @@
                     android:layout_marginEnd="8dp"
                     android:gravity="center"
                     android:text="JD"
-                    android:textColor="@android:color/black"
+                    android:textColor="?attr/colorOnPrimary"
                     android:textSize="16sp"
                     android:background="@drawable/circle_background"
                     android:contentDescription="@string/default_profile_image" />
 
-                <!-- Logout icon -->
+                <!-- Logout Icon -->
                 <ImageView
                     android:id="@+id/logoutIcon"
                     android:layout_width="wrap_content"
@@ -55,12 +54,11 @@
                     android:padding="8dp"
                     android:src="@drawable/ic_logout"
                     android:contentDescription="@string/logout" />
-
             </LinearLayout>
         </com.google.android.material.appbar.MaterialToolbar>
     </com.google.android.material.appbar.AppBarLayout>
 
-    <!-- Scrollable Content -->
+    <!-- Main Scrollable Content -->
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -68,89 +66,115 @@
         android:padding="24dp"
         tools:ignore="MissingConstraints">
 
-        <!-- Main Content Layout -->
         <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="0dp">
+            android:layout_height="wrap_content">
 
-            <!-- Slogan / Subtitle -->
+            <!-- Hero SubTitle -->
             <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/subtitleText"
+                android:id="@+id/heroSubtitle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
                 android:text="@string/slogan"
-                android:textColor="@android:color/black"
-                android:textSize="17sp"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent" />
+                android:textSize="16sp"
+                android:textColor="@color/heroSubtitle"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginTop="8dp"/>
 
-            <!-- Category Dropdown -->
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/categoryDropdownLayout"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            <!-- Category Card -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/categoryCard"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                android:hint="Select Category"
-                app:boxBackgroundMode="outline"
-                app:endIconMode="dropdown_menu"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/subtitleText">
-
-                <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                    android:id="@+id/categoryAutoCompleteTextView"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:padding="20dp"
-                    android:inputType="none" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <!-- New Category Input (Initially hidden) -->
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/newCategoryInputLayout"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="4dp"
                 android:layout_marginTop="16dp"
-                android:hint="@string/enter_new_category"
-                android:visibility="gone"
-                app:boxBackgroundMode="outline"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/categoryDropdownLayout">
+                app:cardBackgroundColor="@color/categoryCard_background"
+            app:layout_constraintTop_toBottomOf="@id/heroSubtitle"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent">
 
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/newCategoryEditText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <!-- Open Camera Button -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/openCamerabtn"
-                android:layout_width="0dp"
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="32dp"
-                android:backgroundTint="@color/white"
-                android:drawableLeft="@drawable/ic_camera"
-                android:elevation="2dp"
-                android:fontFamily="sans-serif-medium"
-                android:paddingVertical="12dp"
-                android:text="@string/open_camera"
-                android:textColor="@android:color/black"
-                android:textSize="22sp"
-                app:cornerRadius="8dp"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/newCategoryInputLayout"
-                app:strokeColor="@color/black"
-                app:strokeWidth="2dp" />
+                android:padding="16dp">
 
-        </androidx.constraintlayout.widget.ConstraintLayout>
-    </androidx.core.widget.NestedScrollView>
+                <!-- Category Dropdown -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/categoryDropdownLayout"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/select_category"
+                    app:endIconMode="dropdown_menu"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent">
+                    <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                        android:id="@+id/categoryAutoCompleteTextView"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:padding="8dp"
+                        android:inputType="none" />
+                </com.google.android.material.textfield.TextInputLayout>
 
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+                <!-- "No Categories" Warning -->
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/noCategoryWarning"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/no_categories"
+                    android:textColor="@android:color/holo_red_dark"
+                    android:visibility="gone"
+                    app:layout_constraintTop_toBottomOf="@id/categoryDropdownLayout"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"/>
+
+                <!-- Create New Category Button -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/createCategoryButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/create_new_category"
+                    android:textAllCaps="false"
+                    android:textColor="?attr/colorOnPrimary"
+                    android:backgroundTint="?attr/colorPrimary"
+                    android:paddingHorizontal="16dp"
+                    android:paddingVertical="12dp"
+                    android:textSize="16sp"
+                    app:cornerRadius="8dp"
+                    app:strokeColor="?attr/colorPrimary"
+                    app:strokeWidth="2dp"
+                    app:layout_constraintTop_toBottomOf="@id/noCategoryWarning"
+                    app:layout_constraintStart_toStartOf="parent" />
+            </androidx.constraintlayout.widget.ConstraintLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Open Camera Button -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/openCamerabtn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="@string/open_camera"
+            android:textColor="?attr/colorOnSurface"
+            android:backgroundTint="@android:color/white"
+            android:drawableLeft="@drawable/ic_camera"
+            android:elevation="2dp"
+            android:fontFamily="sans-serif-medium"
+            android:paddingVertical="12dp"
+            android:textSize="22sp"
+            app:cornerRadius="8dp"
+            app:strokeColor="@android:color/black"
+            app:strokeWidth="2dp"
+            app:layout_constraintTop_toBottomOf="@id/categoryCard"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</androidx.core.widget.NestedScrollView>
+
+    </androidx.coordinatorlayout.widget.CoordinatorLayout>

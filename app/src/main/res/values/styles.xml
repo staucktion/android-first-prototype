@@ -3,16 +3,20 @@
 
     <!-- Base application theme -->
     <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <!-- Primary brand color -->
+        <!-- Primary brand color (used for toolbars, buttons, etc.) -->
         <item name="colorPrimary">@color/black</item>
-        <!-- Darker variant for status bar / toolbar -->
+        <!-- Darker variant for status bar and toolbar backgrounds -->
         <item name="colorPrimaryVariant">@color/purple_700</item>
-        <!-- Text/icon color on primary surfaces -->
+        <!-- Text and icon color on primary surfaces (e.g., on the toolbar) -->
         <item name="colorOnPrimary">@android:color/white</item>
-        <!-- Background for your screens -->
+        <!-- Background color for your screens -->
         <item name="colorSurface">@android:color/white</item>
-        <!-- Text/icon color on surfaces -->
-        <item name="colorOnSurface">@android:color/white</item>
+        <!-- Text and icon color on surfaces (e.g., on cards, backgrounds) -->
+        <item name="colorOnSurface">@android:color/black</item>
+        <!-- Secondary color (used for accents or components like Category Cards) -->
+        <item name="colorSecondary">@color/categoryCard_background</item>
+        <!-- Control highlight color, used for interactive states -->
+        <item name="android:colorControlHighlight">@color/black</item>
     </style>
 
 </resources>
