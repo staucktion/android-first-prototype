@@ -28,4 +28,5 @@
     <string name="slogan">The best stock photos shared by creators and travelers.</string>
     <string name="no_categories">No categories found for this location. Please create a new category.</string>
     <string name="create_new_category">Create new category</string>
+    <string name="uploading">Uploading</string>
 </resources>
