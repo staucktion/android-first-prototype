@@ -10,4 +10,6 @@
     <color name="accent_color">#FF5722</color>
     <color name="divider_color">#E0E0E0</color>
     <color name="circular_background">#FF999999</color>
+    <color name="purple_500">#6200EE</color>
+    <color name="purple_700">#3700B3</color>
 </resources>

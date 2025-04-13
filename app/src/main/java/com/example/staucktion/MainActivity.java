@@ -12,12 +12,18 @@ import android.location.Address;
 import android.location.Geocoder;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.Looper;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
+import android.widget.PopupWindow;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -25,6 +31,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import com.bumptech.glide.Glide;
 import com.example.staucktion.api.ApiService;
 import com.example.staucktion.api.OnAddressObtainedListener;
 import com.example.staucktion.api.RetrofitClient;
@@ -32,12 +39,17 @@ import com.example.staucktion.managers.LocationApiManager;
 import com.example.staucktion.models.CategoryRequest;
 import com.example.staucktion.models.CategoryResponse;
 import com.example.staucktion.models.LocationCreateResponse;
+import com.google.android.gms.auth.api.signin.GoogleSignIn;
+import com.google.android.gms.auth.api.signin.GoogleSignInClient;
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.onesignal.OneSignal;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,10 +62,7 @@ import retrofit2.Callback;
 import retrofit2.Response;
 import timber.log.Timber;
 
-import android.os.Handler;
-import android.os.Looper;
-
-// Assume you have a StatusEnum defined somewhere, for example:
+// Assume you have a StatusEnum defined somewhere:
 class StatusEnum {
     public static final int WAIT = 2; // WAIT status value
 }
@@ -67,40 +76,41 @@ public class MainActivity extends AppCompatActivity {
     private LocationManager locationManager;
     private FusedLocationProviderClient fusedLocationClient;
 
-    // Dynamically obtained coordinates
+    // Coordinates
     private double currentLatitude = 0;
     private double currentLongitude = 0;
 
-    // Holds the selected category ID (if one is chosen)
+    // Category and API-related variables
     private int selectedCategoryId = -1;
-    // List to hold the loaded categories so we can map names to IDs
     private List<CategoryResponse> loadedCategories = new ArrayList<>();
-
     private ApiService apiService;
     private LocationApiManager locationApiManager;
     private AutoCompleteTextView categoryAutoCompleteTextView;
 
-    // Flag to indicate if location was ever disabled during the camera session.
-    // This flag is now also persisted in SharedPreferences.
+    // Flag for location issues during camera session
     private boolean locationWasDisabled = false;
 
-    // Add a Handler and Runnable for periodic category refresh
+    private GoogleSignInClient googleSignInClient;
+
+    // Changed: Instead of an ImageView for the profile photo, we are now using a TextView for the text avatar.
+    private TextView textAvatar;
+    private View logoutIcon; // Still an ImageView typically, but using generic View here
+
+    // Category refresh handler and runnable
     private Handler categoryHandler = new Handler(Looper.getMainLooper());
     private Runnable categoryRefreshRunnable = new Runnable() {
         @Override
         public void run() {
             refreshCategories();
-            // Schedule the next refresh in 10 seconds (adjust the delay as needed)
             categoryHandler.postDelayed(this, 10000);
         }
     };
 
-    // BroadcastReceiver for location changes remains unchanged
+    // BroadcastReceiver for location changes remains the same
     private final BroadcastReceiver locationChangeReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                // GPS was disabled; update the flag and broadcast a kill intent.
                 locationWasDisabled = true;
                 SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
                 prefs.edit().putBoolean("gpsDisabledDuringCamera", true).apply();
@@ -111,26 +121,18 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
-    // Additionally, refresh categories every time the activity resumes:
     @Override
     protected void onResume() {
         super.onResume();
-        // Register the location change receiver
         registerReceiver(locationChangeReceiver, new IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION));
-
-        // Start the periodic category refresh
         categoryHandler.post(categoryRefreshRunnable);
-
-        // Optionally, do an immediate refresh
         refreshCategories();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        // Unregister the location change receiver
         unregisterReceiver(locationChangeReceiver);
-        // Remove pending callbacks to avoid memory leaks or unwanted updates when activity is paused
         categoryHandler.removeCallbacks(categoryRefreshRunnable);
     }
 
@@ -138,10 +140,46 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        // Initialize OneSignal push notifications (replace with your app ID)
+        OneSignal.initWithContext(this, "5dafc689-25b8-4756-8c78-a31e6a541e51");
+
         Timber.plant(new Timber.DebugTree());
         Timber.i("Starting MainActivity");
 
-        // Token check (if no valid token, redirect to LoginActivity)
+        // Get the toolbar from the layout
+        MaterialToolbar toolbar = findViewById(R.id.topAppBar);
+
+        // Get the new text-based avatar and the logout icon from the toolbar.
+        textAvatar = toolbar.findViewById(R.id.textAvatar);
+        logoutIcon = toolbar.findViewById(R.id.logoutIcon);
+
+        // Load the user's profile information into the avatar (set abbreviation)
+        loadUserProfile();
+
+        // When the avatar (textAvatar) is clicked, show a popup with full info.
+        textAvatar.setOnClickListener(v -> showAvatarPopup(v));
+
+        // Set up logout functionality on the logout icon.
+        logoutIcon.setOnClickListener(v -> {
+            SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
+            prefs.edit().clear().apply();
+
+            GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                    .requestIdToken(getString(R.string.web_client_id))
+                    .requestEmail()
+                    .build();
+            googleSignInClient = GoogleSignIn.getClient(MainActivity.this, gso);
+
+            googleSignInClient.signOut().addOnCompleteListener(task -> {
+                Toast.makeText(MainActivity.this, "Logged out", Toast.LENGTH_SHORT).show();
+                Intent intent = new Intent(MainActivity.this, LoginActivity.class);
+                startActivity(intent);
+                finish();
+            });
+        });
+
+        // Token check: If no valid token or expired, go to LoginActivity.
         SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
         String appToken = prefs.getString("appToken", null);
         long tokenExpiry = prefs.getLong("appTokenExpiry", 0);
@@ -154,18 +192,17 @@ public class MainActivity extends AppCompatActivity {
             RetrofitClient.getInstance().setAuthToken(appToken);
         }
 
-        // Initialize managers and services
+        // Initialize Retrofit API service, location manager, and FusedLocationProviderClient.
         apiService = RetrofitClient.getInstance().create(ApiService.class);
         locationApiManager = new LocationApiManager();
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
-        // Reference to AutoCompleteTextView in layout
+        // Get reference to AutoCompleteTextView and camera button from the layout.
         categoryAutoCompleteTextView = findViewById(R.id.categoryAutoCompleteTextView);
         Button openCameraBtn = findViewById(R.id.openCamerabtn);
-        Button profileBtn = findViewById(R.id.profilebtn);
 
-        // Load location and approved categories
+        // Check location permissions and get the last known location.
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this,
@@ -175,15 +212,13 @@ public class MainActivity extends AppCompatActivity {
             getLastLocation();
         }
 
-        // Open Camera button click
+        // Handle the Open Camera button click.
         openCameraBtn.setOnClickListener(v -> {
-            // Check if GPS is enabled before proceeding
             if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                 Toast.makeText(MainActivity.this, "GPS is turned off. Please enable GPS to use the camera.", Toast.LENGTH_LONG).show();
                 return;
             }
 
-            // First, check for camera permission
             if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA)
                     != PackageManager.PERMISSION_GRANTED) {
                 if (ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this, Manifest.permission.CAMERA)) {
@@ -202,10 +237,8 @@ public class MainActivity extends AppCompatActivity {
                             new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION_REQUEST_CODE);
                 }
             } else {
-                // Check if the user has selected a category from the dropdown
                 String selectedName = categoryAutoCompleteTextView.getText().toString().trim();
                 if (!selectedName.isEmpty()) {
-                    // Look for the category in our loadedCategories list
                     for (CategoryResponse cat : loadedCategories) {
                         if (cat.getName().equalsIgnoreCase(selectedName)) {
                             selectedCategoryId = Integer.parseInt(cat.getId());
@@ -217,18 +250,69 @@ public class MainActivity extends AppCompatActivity {
                         return;
                     }
                 }
-                // If no valid selection, prompt the user for a new category name.
                 promptForCategoryNameAndCreateCategory(currentLatitude, currentLongitude);
             }
         });
-
-        // Profile button
-        profileBtn.setOnClickListener(v -> startActivity(new Intent(MainActivity.this, ProfileActivity.class)));
     }
 
     /**
-     * Retrieves the last known location from the fused location provider.
+     * Loads user profile details from SharedPreferences and sets the avatar text to the abbreviation.
      */
+    private void loadUserProfile() {
+        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
+        String fullName = prefs.getString("userName", "John Doe");
+        String abbreviation = getAbbreviation(fullName);
+        textAvatar.setText(abbreviation);
+    }
+
+    /**
+     * Returns a two-letter abbreviation from the full name.
+     */
+    private String getAbbreviation(String fullName) {
+        if (fullName == null || fullName.trim().isEmpty()) {
+            return "?";
+        }
+        String[] parts = fullName.trim().split("\\s+");
+        StringBuilder sb = new StringBuilder();
+        // Use the first character of up to two parts (e.g., first and last names)
+        for (int i = 0; i < parts.length && i < 2; i++) {
+            sb.append(parts[i].substring(0, 1).toUpperCase());
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Displays a PopupWindow below the avatar showing the user's full name and profile image.
+     */
+    private void showAvatarPopup(View anchorView) {
+        LayoutInflater inflater = LayoutInflater.from(this);
+        View popupView = inflater.inflate(R.layout.layout_avatar_popup, null);
+
+        TextView popupFullName = popupView.findViewById(R.id.popupFullName);
+        ImageView popupProfileImage = popupView.findViewById(R.id.popupProfileImage);
+
+        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
+        String fullName = prefs.getString("userName", "John Doe");
+        String photoUrl = prefs.getString("userPhotoUrl", "");
+        popupFullName.setText(fullName);
+        if (!photoUrl.isEmpty()) {
+            Glide.with(this)
+                    .load(photoUrl)
+                    .placeholder(R.drawable.default_profile)
+                    .into(popupProfileImage);
+        } else {
+            popupProfileImage.setImageResource(R.drawable.default_profile);
+        }
+
+        final PopupWindow popupWindow = new PopupWindow(
+                popupView,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                true
+        );
+        popupWindow.showAsDropDown(anchorView, 0, 0);
+    }
+
     @SuppressLint("MissingPermission")
     private void getLastLocation() {
         LocationRequest locationRequest = LocationRequest.create()
@@ -241,7 +325,6 @@ public class MainActivity extends AppCompatActivity {
             public void onLocationResult(LocationResult locationResult) {
                 super.onLocationResult(locationResult);
                 fusedLocationClient.removeLocationUpdates(this);
-
                 if (locationResult != null && locationResult.getLastLocation() != null) {
                     currentLatitude = locationResult.getLastLocation().getLatitude();
                     currentLongitude = locationResult.getLastLocation().getLongitude();
@@ -306,9 +389,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
                                            @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode,
-                Objects.requireNonNull(permissions),
-                grantResults);
+        super.onRequestPermissionsResult(requestCode, Objects.requireNonNull(permissions), grantResults);
         if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 getLastLocation();
@@ -318,7 +399,6 @@ public class MainActivity extends AppCompatActivity {
             }
         } else if (requestCode == CAMERA_PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // Once camera permission is granted, proceed with checking category
                 checkCategoryAtCoordinates(currentLatitude, currentLongitude);
             } else {
                 Toast.makeText(MainActivity.this, "Camera permission required.", Toast.LENGTH_SHORT).show();
@@ -326,11 +406,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /**
-     * Checks via your backend if an existing category exists for the given coordinates.
-     */
     private void checkCategoryAtCoordinates(double latitude, double longitude) {
-        // Check if GPS is enabled before proceeding
         if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
             Toast.makeText(MainActivity.this, "GPS is turned off. Please enable GPS to use the camera.", Toast.LENGTH_LONG).show();
             return;
@@ -342,7 +418,6 @@ public class MainActivity extends AppCompatActivity {
                     public void onResponse(@NonNull Call<List<CategoryResponse>> call,
                                            @NonNull Response<List<CategoryResponse>> response) {
                         if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
-                            // Pick the first approved category from the list
                             CategoryResponse approvedCategory = response.body().get(0);
                             selectedCategoryId = Integer.parseInt(approvedCategory.getId());
                             Timber.i("Found approved category with ID: %d", selectedCategoryId);
@@ -361,10 +436,6 @@ public class MainActivity extends AppCompatActivity {
                 });
     }
 
-    /**
-     * Prompts the user for a category name using a custom dialog layout.
-     * If the user enters a name, creates a new location and category.
-     */
     private void promptForCategoryNameAndCreateCategory(final double latitude, final double longitude) {
         View customView = getLayoutInflater().inflate(R.layout.dialog_category, null);
         EditText input = customView.findViewById(R.id.editCategoryName);
@@ -384,10 +455,6 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
 
-    /**
-     * Creates a new location using the given coordinates, then uses reverse geocoding to obtain the address,
-     * and finally creates a new category using the provided category name and obtained address.
-     */
     private void createLocationAndCategory(double latitude, double longitude, String categoryName) {
         locationApiManager.createLocation(latitude, longitude, new Callback<LocationCreateResponse>() {
             @Override
@@ -396,7 +463,6 @@ public class MainActivity extends AppCompatActivity {
                 if (response.isSuccessful() && response.body() != null && response.body().getLocation() != null) {
                     int locationId = Integer.parseInt(response.body().getLocation().getId());
                     Timber.i("Created new location with ID: %d", locationId);
-                    // Get address via reverse geocoding and then create category
                     getAddressFromCoordinates(latitude, longitude, address -> {
                         createCategory(locationId, categoryName, address);
                     });
@@ -415,10 +481,6 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    /**
-     * Creates a new category linked to the given location ID using the provided category name and address.
-     * The status is set dynamically based on photo status (here we assume WAIT status).
-     */
     private void createCategory(int locationId, String categoryName, String address) {
         int statusId = StatusEnum.WAIT;
 
@@ -453,9 +515,6 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    /**
-     * Uses Android's Geocoder to convert latitude and longitude into a human-readable address.
-     */
     private void getAddressFromCoordinates(double latitude, double longitude, OnAddressObtainedListener listener) {
         Geocoder geocoder = new Geocoder(this, Locale.getDefault());
         try {
@@ -474,12 +533,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    /**
-     * Launches CameraActivity. When the image is captured, onActivityResult is called,
-     * which then passes the image path and category ID to ApiActivity for uploading.
-     */
     private void launchCamera() {
-        // Reset GPS flags before starting the camera
         locationWasDisabled = false;
         SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
         prefs.edit()
@@ -493,23 +547,19 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // Add this method to clearly separate loading logic.
     private void refreshCategories() {
         if (currentLatitude != 0 && currentLongitude != 0) {
             loadApprovedCategories(currentLatitude, currentLongitude);
         } else {
-            getLastLocation(); // Ensure we have fresh coordinates if needed.
+            getLastLocation();
         }
     }
 
-    // Call refreshCategories() whenever camera or upload finishes successfully.
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-
         if (requestCode == CAMERA_REQUEST_CODE) {
             if (resultCode == RESULT_OK && data != null) {
-                // Perform the GPS flag checks as before.
                 SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
                 boolean gpsStatusAtStart = prefs.getBoolean("gpsStatusOnCameraStart", true);
                 boolean gpsDisabledDuringCamera = prefs.getBoolean("gpsDisabledDuringCamera", false);
@@ -519,20 +569,16 @@ public class MainActivity extends AppCompatActivity {
                     Toast.makeText(MainActivity.this,
                             "GPS was disabled during photo capture. Upload failed. Please enable GPS and try again.",
                             Toast.LENGTH_LONG).show();
-                    categoryAutoCompleteTextView.setText(""); // reset UI if necessary
-                    return;  // Stop here, prevent upload!
+                    categoryAutoCompleteTextView.setText("");
+                    return;
                 }
-
                 String imagePath = data.getStringExtra("image_path");
                 Intent intent = new Intent(MainActivity.this, ApiActivity.class);
                 intent.putExtra("image_path", imagePath);
                 intent.putExtra("category_id", selectedCategoryId);
                 startActivity(intent);
-
-                // Immediately refresh categories when returning
                 refreshCategories();
             } else {
-                // Check if the cancellation was due to GPS being disabled.
                 boolean gpsDisabled = data != null && data.getBooleanExtra("gps_disabled", false);
                 if (gpsDisabled) {
                     Toast.makeText(MainActivity.this,
