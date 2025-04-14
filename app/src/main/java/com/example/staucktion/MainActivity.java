@@ -48,7 +48,9 @@ import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.material.appbar.MaterialToolbar;
+import com.google.android.material.button.MaterialButton;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.textview.MaterialTextView;
 import com.onesignal.OneSignal;
 
 import java.io.IOException;
@@ -87,14 +89,18 @@ public class MainActivity extends AppCompatActivity {
     private LocationApiManager locationApiManager;
     private AutoCompleteTextView categoryAutoCompleteTextView;
 
+    // UI elements for category guidance
+    private MaterialTextView noCategoryWarning;
+    private MaterialButton createCategoryButton;  // Always visible
+
     // Flag for location issues during camera session
     private boolean locationWasDisabled = false;
 
     private GoogleSignInClient googleSignInClient;
 
-    // Changed: Instead of an ImageView for the profile photo, we are now using a TextView for the text avatar.
+    // Using a text avatar (instead of an image) and logout icon on the toolbar.
     private TextView textAvatar;
-    private View logoutIcon; // Still an ImageView typically, but using generic View here
+    private View logoutIcon;
 
     // Category refresh handler and runnable
     private Handler categoryHandler = new Handler(Looper.getMainLooper());
@@ -106,7 +112,7 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
-    // BroadcastReceiver for location changes remains the same
+    // BroadcastReceiver for location changes
     private final BroadcastReceiver locationChangeReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -147,20 +153,16 @@ public class MainActivity extends AppCompatActivity {
         Timber.plant(new Timber.DebugTree());
         Timber.i("Starting MainActivity");
 
-        // Get the toolbar from the layout
+        // Get the toolbar from the layout and retrieve toolbar elements.
         MaterialToolbar toolbar = findViewById(R.id.topAppBar);
-
-        // Get the new text-based avatar and the logout icon from the toolbar.
         textAvatar = toolbar.findViewById(R.id.textAvatar);
         logoutIcon = toolbar.findViewById(R.id.logoutIcon);
 
-        // Load the user's profile information into the avatar (set abbreviation)
+        // Load the user's profile and set text avatar.
         loadUserProfile();
-
-        // When the avatar (textAvatar) is clicked, show a popup with full info.
         textAvatar.setOnClickListener(v -> showAvatarPopup(v));
 
-        // Set up logout functionality on the logout icon.
+        // Set up logout functionality.
         logoutIcon.setOnClickListener(v -> {
             SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
             prefs.edit().clear().apply();
@@ -173,13 +175,12 @@ public class MainActivity extends AppCompatActivity {
 
             googleSignInClient.signOut().addOnCompleteListener(task -> {
                 Toast.makeText(MainActivity.this, "Logged out", Toast.LENGTH_SHORT).show();
-                Intent intent = new Intent(MainActivity.this, LoginActivity.class);
-                startActivity(intent);
+                startActivity(new Intent(MainActivity.this, LoginActivity.class));
                 finish();
             });
         });
 
-        // Token check: If no valid token or expired, go to LoginActivity.
+        // Check token validity.
         SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
         String appToken = prefs.getString("appToken", null);
         long tokenExpiry = prefs.getLong("appTokenExpiry", 0);
@@ -192,17 +193,24 @@ public class MainActivity extends AppCompatActivity {
             RetrofitClient.getInstance().setAuthToken(appToken);
         }
 
-        // Initialize Retrofit API service, location manager, and FusedLocationProviderClient.
+        // Initialize API service, location manager, and fused location client.
         apiService = RetrofitClient.getInstance().create(ApiService.class);
         locationApiManager = new LocationApiManager();
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
 
-        // Get reference to AutoCompleteTextView and camera button from the layout.
+        // Reference AutoCompleteTextView, warning TextView, Create Category button, and Open Camera button.
         categoryAutoCompleteTextView = findViewById(R.id.categoryAutoCompleteTextView);
+        noCategoryWarning = findViewById(R.id.noCategoryWarning);
+        createCategoryButton = findViewById(R.id.createCategoryButton);
         Button openCameraBtn = findViewById(R.id.openCamerabtn);
 
-        // Check location permissions and get the last known location.
+        // Always allow the user to create a new category.
+        createCategoryButton.setOnClickListener(v ->
+                promptForCategoryNameAndCreateCategory(currentLatitude, currentLongitude)
+        );
+
+        // Check and request location permissions.
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this,
@@ -212,21 +220,24 @@ public class MainActivity extends AppCompatActivity {
             getLastLocation();
         }
 
-        // Handle the Open Camera button click.
+        // Handle Open Camera button click.
         openCameraBtn.setOnClickListener(v -> {
+            // First, check GPS.
             if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                 Toast.makeText(MainActivity.this, "GPS is turned off. Please enable GPS to use the camera.", Toast.LENGTH_LONG).show();
                 return;
             }
-
+            // Then, check camera permissions.
             if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA)
                     != PackageManager.PERMISSION_GRANTED) {
                 if (ActivityCompat.shouldShowRequestPermissionRationale(MainActivity.this, Manifest.permission.CAMERA)) {
                     new MaterialAlertDialogBuilder(MainActivity.this)
                             .setTitle("Camera Permission Needed")
                             .setMessage("This app needs camera access to take photos. Please grant the permission.")
-                            .setPositiveButton("Allow", (dialog, which) -> ActivityCompat.requestPermissions(MainActivity.this,
-                                    new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION_REQUEST_CODE))
+                            .setPositiveButton("Allow", (dialog, which) ->
+                                    ActivityCompat.requestPermissions(MainActivity.this,
+                                            new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION_REQUEST_CODE)
+                            )
                             .setNegativeButton("Cancel", (dialog, which) -> {
                                 dialog.dismiss();
                                 Toast.makeText(MainActivity.this, "Camera permission is required.", Toast.LENGTH_SHORT).show();
@@ -237,8 +248,14 @@ public class MainActivity extends AppCompatActivity {
                             new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION_REQUEST_CODE);
                 }
             } else {
+                // If camera permission is granted, check if a category is selected.
                 String selectedName = categoryAutoCompleteTextView.getText().toString().trim();
-                if (!selectedName.isEmpty()) {
+                if (selectedName.isEmpty()) {
+                    Toast.makeText(MainActivity.this, "Please first select or create a new category.", Toast.LENGTH_SHORT).show();
+                    return;
+                } else {
+                    // Attempt to find the selected category in our loaded categories.
+                    selectedCategoryId = -1;
                     for (CategoryResponse cat : loadedCategories) {
                         if (cat.getName().equalsIgnoreCase(selectedName)) {
                             selectedCategoryId = Integer.parseInt(cat.getId());
@@ -248,15 +265,18 @@ public class MainActivity extends AppCompatActivity {
                     if (selectedCategoryId != -1) {
                         launchCamera();
                         return;
+                    } else {
+                        // If the text is non-empty but doesn’t match any loaded category.
+                        Toast.makeText(MainActivity.this, "Please first select or create a valid category.", Toast.LENGTH_SHORT).show();
+                        return;
                     }
                 }
-                promptForCategoryNameAndCreateCategory(currentLatitude, currentLongitude);
             }
         });
     }
 
     /**
-     * Loads user profile details from SharedPreferences and sets the avatar text to the abbreviation.
+     * Loads the user's profile from SharedPreferences and sets the text avatar abbreviation.
      */
     private void loadUserProfile() {
         SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
@@ -266,31 +286,28 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Returns a two-letter abbreviation from the full name.
+     * Returns a two-letter abbreviation for a full name.
      */
     private String getAbbreviation(String fullName) {
         if (fullName == null || fullName.trim().isEmpty()) {
             return "?";
         }
         String[] parts = fullName.trim().split("\\s+");
-        StringBuilder sb = new StringBuilder();
-        // Use the first character of up to two parts (e.g., first and last names)
-        for (int i = 0; i < parts.length && i < 2; i++) {
-            sb.append(parts[i].substring(0, 1).toUpperCase());
+        StringBuilder abbreviation = new StringBuilder();
+        for (String part : parts) {
+            abbreviation.append(part.substring(0, 1).toUpperCase());
         }
-        return sb.toString();
+        return abbreviation.toString();
     }
 
     /**
-     * Displays a PopupWindow below the avatar showing the user's full name and profile image.
+     * Displays a PopupWindow below the text avatar showing the user's full name and profile image.
      */
     private void showAvatarPopup(View anchorView) {
         LayoutInflater inflater = LayoutInflater.from(this);
         View popupView = inflater.inflate(R.layout.layout_avatar_popup, null);
-
         TextView popupFullName = popupView.findViewById(R.id.popupFullName);
         ImageView popupProfileImage = popupView.findViewById(R.id.popupProfileImage);
-
         SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
         String fullName = prefs.getString("userName", "John Doe");
         String photoUrl = prefs.getString("userPhotoUrl", "");
@@ -303,8 +320,7 @@ public class MainActivity extends AppCompatActivity {
         } else {
             popupProfileImage.setImageResource(R.drawable.default_profile);
         }
-
-        final PopupWindow popupWindow = new PopupWindow(
+        PopupWindow popupWindow = new PopupWindow(
                 popupView,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
@@ -319,7 +335,6 @@ public class MainActivity extends AppCompatActivity {
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
                 .setInterval(5000)
                 .setFastestInterval(2000);
-
         fusedLocationClient.requestLocationUpdates(locationRequest, new LocationCallback() {
             @Override
             public void onLocationResult(LocationResult locationResult) {
@@ -359,12 +374,19 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void onResponse(@NonNull Call<List<CategoryResponse>> call,
                                            @NonNull Response<List<CategoryResponse>> response) {
-                        if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
-                            loadedCategories = response.body();
-                            updateSpinnerWithCategories(loadedCategories);
+                        MaterialTextView noCategoryWarning = findViewById(R.id.noCategoryWarning);
+                        if (response.isSuccessful() && response.body() != null) {
+                            List<CategoryResponse> categories = response.body();
+                            if (!categories.isEmpty()) {
+                                loadedCategories = categories;
+                                updateSpinnerWithCategories(loadedCategories);
+                                noCategoryWarning.setVisibility(View.GONE);
+                            } else {
+                                noCategoryWarning.setVisibility(View.VISIBLE);
+                                updateSpinnerWithCategories(new ArrayList<>());
+                            }
                         } else {
-                            Timber.e("Category response unsuccessful or empty.");
-                            Toast.makeText(MainActivity.this, "No categories available for this location.", Toast.LENGTH_SHORT).show();
+                            noCategoryWarning.setVisibility(View.VISIBLE);
                         }
                     }
 
@@ -372,6 +394,8 @@ public class MainActivity extends AppCompatActivity {
                     public void onFailure(@NonNull Call<List<CategoryResponse>> call, @NonNull Throwable t) {
                         Timber.e(t, "Error loading categories");
                         Toast.makeText(MainActivity.this, "Failed to load categories.", Toast.LENGTH_SHORT).show();
+                        MaterialTextView noCategoryWarning = findViewById(R.id.noCategoryWarning);
+                        noCategoryWarning.setVisibility(View.VISIBLE);
                     }
                 });
     }
@@ -381,7 +405,9 @@ public class MainActivity extends AppCompatActivity {
         for (CategoryResponse cat : categories) {
             names.add(cat.getName());
         }
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_dropdown_item_1line, names);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_dropdown_item_1line,
+                names);
         adapter.setDropDownViewResource(android.R.layout.simple_dropdown_item_1line);
         categoryAutoCompleteTextView.setAdapter(adapter);
     }
@@ -411,7 +437,6 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(MainActivity.this, "GPS is turned off. Please enable GPS to use the camera.", Toast.LENGTH_LONG).show();
             return;
         }
-
         apiService.getApprovedCategoriesByCoordinates(latitude, longitude, "APPROVE")
                 .enqueue(new Callback<List<CategoryResponse>>() {
                     @Override
@@ -439,7 +464,6 @@ public class MainActivity extends AppCompatActivity {
     private void promptForCategoryNameAndCreateCategory(final double latitude, final double longitude) {
         View customView = getLayoutInflater().inflate(R.layout.dialog_category, null);
         EditText input = customView.findViewById(R.id.editCategoryName);
-
         new MaterialAlertDialogBuilder(this)
                 .setTitle("Enter Category Name")
                 .setView(customView)
@@ -471,7 +495,6 @@ public class MainActivity extends AppCompatActivity {
                     finish();
                 }
             }
-
             @Override
             public void onFailure(@NonNull Call<LocationCreateResponse> call, @NonNull Throwable t) {
                 Timber.e(t, "Failed to create location");
@@ -483,15 +506,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void createCategory(int locationId, String categoryName, String address) {
         int statusId = StatusEnum.WAIT;
-
-        CategoryRequest request = new CategoryRequest(
-                categoryName,
-                address,
-                5.0,
-                locationId,
-                statusId
-        );
-
+        CategoryRequest request = new CategoryRequest(categoryName, address, 5.0, locationId, statusId);
         apiService.createCategory(request).enqueue(new Callback<CategoryResponse>() {
             @Override
             public void onResponse(@NonNull Call<CategoryResponse> call,
@@ -505,7 +520,6 @@ public class MainActivity extends AppCompatActivity {
                     finish();
                 }
             }
-
             @Override
             public void onFailure(@NonNull Call<CategoryResponse> call, @NonNull Throwable t) {
                 Timber.e(t, "Failed to create category");
@@ -564,7 +578,6 @@ public class MainActivity extends AppCompatActivity {
                 boolean gpsStatusAtStart = prefs.getBoolean("gpsStatusOnCameraStart", true);
                 boolean gpsDisabledDuringCamera = prefs.getBoolean("gpsDisabledDuringCamera", false);
                 boolean gpsStatusNow = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
-
                 if (!gpsStatusAtStart || locationWasDisabled || gpsDisabledDuringCamera || !gpsStatusNow) {
                     Toast.makeText(MainActivity.this,
                             "GPS was disabled during photo capture. Upload failed. Please enable GPS and try again.",
