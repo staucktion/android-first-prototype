@@ -293,11 +293,11 @@ public class MainActivity extends AppCompatActivity {
             return "?";
         }
         String[] parts = fullName.trim().split("\\s+");
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < parts.length && i < 2; i++) {
-            sb.append(parts[i].substring(0, 1).toUpperCase());
+        StringBuilder abbreviation = new StringBuilder();
+        for (String part : parts) {
+            abbreviation.append(part.substring(0, 1).toUpperCase());
         }
-        return sb.toString();
+        return abbreviation.toString();
     }
 
     /**
