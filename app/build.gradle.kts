@@ -11,7 +11,6 @@ plugins {
     alias(libs.plugins.android.application)
     id("com.google.gms.google-services")
 }
-
 android {
     namespace = "com.example.staucktion"
     compileSdk = 34
@@ -84,7 +83,9 @@ dependencies {
     annotationProcessor ("com.github.bumptech.glide:compiler:4.13.0")
     implementation ("com.squareup.okhttp3:logging-interceptor:4.12.0")
     implementation ("com.google.android.gms:play-services-location:21.2.0")
-    implementation("com.onesignal:OneSignal:[5.1.6, 5.1.99]")
+    //implementation ("com.onesignal:OneSignal:5.1.6")
+    implementation ("com.onesignal:OneSignal:4.8.6")
+    //implementation ("com.onesignal:OneSignal:5.4.0")
     implementation(platform("com.google.firebase:firebase-bom:33.12.0"))
     implementation ("androidx.appcompat:appcompat:1.6.1")
     implementation ("androidx.constraintlayout:constraintlayout:2.1.4")

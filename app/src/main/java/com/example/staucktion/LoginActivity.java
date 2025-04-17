@@ -1,5 +1,7 @@
 package com.example.staucktion;
 
+import static com.example.staucktion.R.layout.activity_login;
+
 import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -7,6 +9,7 @@ import android.os.Bundle;
 import android.widget.Button;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -14,12 +17,21 @@ import com.example.staucktion.api.ApiService;
 import com.example.staucktion.api.RetrofitClient;
 import com.example.staucktion.models.AuthRequest;
 import com.example.staucktion.models.AuthResponse;
+import com.example.staucktion.models.UserInfoResponse;
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInClient;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.tasks.Task;
+import com.google.gson.Gson;
+import com.onesignal.OneSignal;
+import com.onesignal.OneSignal.ExternalIdError;
+import com.onesignal.OneSignal.OSExternalUserIdUpdateCompletionHandler;
+
+import org.json.JSONObject;
+
+import java.io.IOException;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -33,139 +45,157 @@ public class LoginActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_login);
+        setContentView(activity_login);
 
-        // Check if there is a valid token in SharedPreferences.
+        // 1) If we already have a valid JWT, skip ahead:
         SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
-        String appToken = prefs.getString("appToken", null);
-        long tokenExpiry = prefs.getLong("appTokenExpiry", 0);
-        if (appToken != null && tokenExpiry != 0 && System.currentTimeMillis() < tokenExpiry) {
-            // Token is valid, proceed directly to MainActivity.
+        String savedJwt    = prefs.getString("appToken", null);
+        long   savedExpiry = prefs.getLong("appTokenExpiry", 0);
+        // instead of checking Google alone, combine it:
+        // only skip when your token is still valid
+        if (savedJwt != null
+                && System.currentTimeMillis() < savedExpiry) {
             goToMainActivity();
             return;
         }
 
-        // Configure Google Sign-In options with your Web Client ID.
+        // 2) Configure Google Sign‑In:
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                 .requestIdToken(getString(R.string.web_client_id))
                 .requestEmail()
                 .build();
         googleSignInClient = GoogleSignIn.getClient(this, gso);
 
-        // Check if the user is already signed in with Google.
-        GoogleSignInAccount account = GoogleSignIn.getLastSignedInAccount(this);
-        if (account != null) {
-            goToMainActivity();
-            return;
-        }
 
-        // Set up the login button.
+        // 4) Otherwise show the “Sign in with Google” button:
         Button btnLogin = findViewById(R.id.btnLogin);
-        btnLogin.setOnClickListener(v -> signIn());
-    }
-
-    private void signIn() {
-        // No forced sign-out here—just launch the sign-in intent.
-        Intent signInIntent = googleSignInClient.getSignInIntent();
-        startActivityForResult(signInIntent, RC_SIGN_IN);
+        btnLogin.setOnClickListener(v ->
+                startActivityForResult(
+                        googleSignInClient.getSignInIntent(),
+                        RC_SIGN_IN
+                )
+        );
     }
 
     @SuppressLint("LogNotTimber")
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode,
-                resultCode,
-                data);
-        if (requestCode == RC_SIGN_IN) {
-            if (data == null) {
-                Timber.w("Received null data in onActivityResult");
-                return;
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != RC_SIGN_IN) return;
+
+        Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
+        try {
+            GoogleSignInAccount acct = task.getResult(ApiException.class);
+            if (acct != null && acct.getIdToken() != null) {
+                exchangeGoogleTokenForJwt(acct);
+            } else {
+                Toast.makeText(this, "Google sign‑in failed", Toast.LENGTH_SHORT).show();
             }
-            Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
-            try {
-                GoogleSignInAccount account = task.getResult(ApiException.class);
-                if (account != null) {
-                    // We have a valid Google account.
-                    String idToken = account.getIdToken();
-
-                    // Save user details in SharedPreferences.
-                    SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
-                    SharedPreferences.Editor editor = prefs.edit();
-                    editor.putString("userName", account.getDisplayName());
-                    editor.putString("userEmail", account.getEmail());
-                    editor.putString("userPhotoUrl", account.getPhotoUrl() != null ? account.getPhotoUrl().toString() : "");
-                    editor.apply();
-
-                    Timber.d("Google sign-in successful, idToken: %s", idToken);
-                    //Toast.makeText(LoginActivity.this, "Log in successful", Toast.LENGTH_SHORT).show();
-
-                    // Send the token to your backend for further authentication.
-                    sendTokenToBackend(idToken);
-                }
-            } catch (ApiException e) {
-                Timber.w(e, "Google sign in failed");
-                Toast.makeText(LoginActivity.this, "Log in failed", Toast.LENGTH_SHORT).show();
-            }
+        } catch (ApiException e) {
+            Toast.makeText(this,
+                    "Google sign‑in exception: " + e.getMessage(),
+                    Toast.LENGTH_SHORT).show();
         }
     }
+    private void exchangeGoogleTokenForJwt(GoogleSignInAccount acct) {
+        // 1) Prepare your ApiService
+        ApiService svc = RetrofitClient.getInstance().create(ApiService.class);
 
-    /**
-     * Send the ID token to your backend for authentication.
-     * On a successful response, store the returned app token and its expiry.
-     */
-    private void sendTokenToBackend(String idToken) {
-        ApiService apiService = RetrofitClient.getInstance().create(ApiService.class);
-        Call<AuthResponse> call = apiService.loginWithGoogle(new AuthRequest(idToken));
+        // 2) Exchange Google token for your JWT
+        svc.loginWithGoogle(new AuthRequest(acct.getIdToken()))
+                .enqueue(new Callback<AuthResponse>() {
+                    @Override
+                    public void onResponse(@NonNull Call<AuthResponse> call,
+                                           @NonNull Response<AuthResponse> res) {
+                        if (!res.isSuccessful() || res.body() == null) {
+                            // handle error
+                            String errJson = "";
+                            try {
+                                if (res.errorBody() != null) errJson = res.errorBody().string();
+                            } catch (IOException e) {
+                                Timber.e(e, "Failed to read errorBody()");
+                            }
+                            Timber.e("Login failed, errorBody=%s", errJson);
+                            Toast.makeText(LoginActivity.this, "Login failed", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
 
-        call.enqueue(new Callback<AuthResponse>() {
-            @Override
-            public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    AuthResponse authResponse = response.body();
-                    String jwtToken = authResponse.getToken();
+                        // 3) Got a valid JWT
+                        AuthResponse auth = res.body();
+                        String jwt = auth.getToken();
+                        long ttl = auth.getExpiresInMillis() > 0
+                                ? auth.getExpiresInMillis()
+                                : 86_400_000L;
+                        long expiry = System.currentTimeMillis() + ttl;
 
-                    // Compute the expiry timestamp.
-                    long expiresInMillis = authResponse.getExpiresInMillis(); // e.g., 3600000 for 1 hour.
-                    if (expiresInMillis == 0) {
-                        // Fallback to a default expiry time of 1 day (86,400,000 ms).
-                        expiresInMillis = 86400000;
+                        // 4) Tell Retrofit to use this token
+                        RetrofitClient.getInstance().setAuthToken(jwt);
+
+                        // 5) Now fetch the full user info (to get your numeric ID)
+                        svc.getUserInfo().enqueue(new Callback<UserInfoResponse>() {
+                            @SuppressLint("TimberArgTypes")
+                            @Override
+                            public void onResponse(@NonNull Call<UserInfoResponse> call,
+                                                   @NonNull Response<UserInfoResponse> userRes) {
+
+                                // fallback to Google ID if /auth/info fails
+                                // 1) Start with a fallback (Google’s string ID parsed to long)
+                                UserInfoResponse wrapper = userRes.body();
+                                int userId = wrapper.getUser().getUserId();
+
+                                // 3) Persist to SharedPreferences (convert back to String if you store as String)
+                                SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
+                                prefs.edit()
+                                        .putString("appToken", jwt)
+                                        .putLong("appTokenExpiry", expiry)
+                                        .putString("userId", String.valueOf(userId))
+                                        .putString("userName", acct.getDisplayName())
+                                        .putString("userPhotoUrl",
+                                                acct.getPhotoUrl() != null
+                                                        ? acct.getPhotoUrl().toString()
+                                                        : ""
+                                        )
+                                        .apply();
+                                Timber.d("User Id is: %d", userId);
+                                // 7) Wire up OneSignal external ID
+                                OneSignal.setExternalUserId(  String.valueOf(userId),
+                                        new OSExternalUserIdUpdateCompletionHandler() {
+                                            @Override
+                                            public void onSuccess(JSONObject results) {
+                                                Timber.d("OneSignal external ID set: %s", results);
+                                            }
+                                            @Override
+                                            public void onFailure(@NonNull ExternalIdError error) {
+                                                Timber.e("OneSignal external ID error: %s", error);
+                                            }
+                                        }
+                                );
+
+                                // 8) Finally, go to main screen
+                                goToMainActivity();
+                            }
+
+                            @Override
+                            public void onFailure(@NonNull Call<UserInfoResponse> call,
+                                                  @NonNull Throwable t) {
+                                Timber.e(t, "Network error fetching user info");
+                                // still let them in
+                                goToMainActivity();
+                            }
+                        });
                     }
-                    long expiryTimestamp = System.currentTimeMillis() + expiresInMillis;
 
-                    // Log the received token and computed expiry.
-                    Timber.d("Received token: %s, expires in: %d ms", jwtToken, expiresInMillis);
-                    Timber.d("Authentication response: %s", authResponse.toString());
-
-                    // Save the token and expiry in SharedPreferences.
-                    SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
-                    prefs.edit()
-                            .putString("appToken", jwtToken)
-                            .putLong("appTokenExpiry", expiryTimestamp)
-                            .apply();
-
-                    // Set the token on the Retrofit client for future API calls.
-                    RetrofitClient.getInstance().setAuthToken(jwtToken);
-
-                    Toast.makeText(LoginActivity.this, "Log in successful", Toast.LENGTH_SHORT).show();
-                    goToMainActivity();
-                } else {
-                    Toast.makeText(LoginActivity.this, "Login failed", Toast.LENGTH_SHORT).show();
-                }
-            }
-
-            @Override
-            public void onFailure(Call<AuthResponse> call, Throwable t) {
-                Timber.e(t, "Network or server error");
-            }
-        });
+                    @Override
+                    public void onFailure(@NonNull Call<AuthResponse> call,
+                                          @NonNull Throwable t) {
+                        Toast.makeText(LoginActivity.this,
+                                "Network error during login", Toast.LENGTH_SHORT).show();
+                    }
+                });
     }
 
-    /**
-     * Navigate to MainActivity and finish LoginActivity so the user cannot navigate back.
-     */
     private void goToMainActivity() {
-        Intent intent = new Intent(LoginActivity.this, MainActivity.class);
-        startActivity(intent);
+        startActivity(new Intent(this, MainActivity.class));
         finish();
     }
 }

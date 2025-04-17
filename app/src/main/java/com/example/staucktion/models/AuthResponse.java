@@ -1,5 +1,7 @@
 package com.example.staucktion.models;
 
+import com.google.gson.annotations.SerializedName;
+
 public class AuthResponse {
     private String token; // instance variable
     private long expiresInMillis;
@@ -19,4 +21,5 @@ public class AuthResponse {
     public void setExpiresInMillis(long expiresInMillis) {
         this.expiresInMillis = expiresInMillis;
     }
+    // Add this getter:
 }

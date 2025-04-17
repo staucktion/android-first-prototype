@@ -6,6 +6,7 @@ import com.example.staucktion.models.CategoryRequest;
 import com.example.staucktion.models.CategoryResponse;
 import com.example.staucktion.models.LocationCreateResponse;
 import com.example.staucktion.models.LocationRequest;
+import com.example.staucktion.models.UserInfoResponse;
 
 import java.util.List;
 
@@ -14,6 +15,8 @@ import okhttp3.RequestBody;
 import okhttp3.ResponseBody;
 import retrofit2.Call;
 import retrofit2.http.Body;
+import retrofit2.http.Field;
+import retrofit2.http.FormUrlEncoded;
 import retrofit2.http.GET;
 import retrofit2.http.Multipart;
 import retrofit2.http.POST;
@@ -37,6 +40,10 @@ public interface ApiService {
     @POST("auth/google/android")
     Call<AuthResponse> loginWithGoogle(@Body AuthRequest authRequest);
 
+    // ← new auth/info endpoint
+    @POST("auth/info")
+    Call<UserInfoResponse> getUserInfo();
+
     @POST("locations")
     Call<LocationCreateResponse> createLocation(@Body LocationRequest locationRequest);
 
@@ -55,5 +62,12 @@ public interface ApiService {
             @Query("latitude") double latitude,
             @Query("longitude") double longitude,
             @Query("status") String status
+    );
+    @FormUrlEncoded
+    @POST("photos/{id}/auction-settings")
+    Call<ResponseBody> saveAuctionSettings(
+            @Path("id") int photoId,
+            @Field("purchase_now_price") double purchaseNowPrice,
+            @Field("auctionable") boolean auctionable
     );
 }
