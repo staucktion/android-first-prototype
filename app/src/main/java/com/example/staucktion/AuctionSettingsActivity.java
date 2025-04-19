@@ -1,11 +1,7 @@
 package com.example.staucktion;
 
+import android.content.Intent;
 import android.os.Bundle;
-import android.widget.Button;
-import android.widget.CheckBox;
-import android.widget.EditText;
-import android.widget.ImageView;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -14,22 +10,27 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.bumptech.glide.Glide;
 import com.example.staucktion.api.ApiService;
 import com.example.staucktion.api.RetrofitClient;
+import com.google.android.material.button.MaterialButton;
 import com.google.android.material.checkbox.MaterialCheckBox;
+import com.google.android.material.imageview.ShapeableImageView;
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textview.MaterialTextView;
 
 import okhttp3.ResponseBody;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
+import timber.log.Timber;
 
 public class AuctionSettingsActivity extends AppCompatActivity {
 
-    private EditText editPurchaseNowPrice;
-    private CheckBox checkAuctionable;
-    private Button btnSaveAuctionSettings;
-    private ImageView photoPreview;
+    private TextInputEditText editPurchaseNowPrice;
+    private MaterialCheckBox  checkAuctionable;
+    private MaterialButton    btnSaveAuctionSettings;
+    private ShapeableImageView photoPreview;
+    private MaterialTextView  photoStatusText;
 
-    private int photoId;
+    private int    photoId;
     private String photoUrl;
     private String status;
 
@@ -38,38 +39,53 @@ public class AuctionSettingsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_auction_settings);
 
-        editPurchaseNowPrice = findViewById(R.id.editPurchaseNowPrice);
-        checkAuctionable = findViewById(R.id.checkAuctionable);
-        btnSaveAuctionSettings = findViewById(R.id.btnSaveAuctionSettings);
-        photoPreview = findViewById(R.id.photoPreview);
-        TextView photoStatusText = findViewById(R.id.photoStatusText);
+        // 1) Find your views
+        editPurchaseNowPrice    = findViewById(R.id.editPurchaseNowPrice);
+        checkAuctionable        = findViewById(R.id.checkAuctionable);
+        btnSaveAuctionSettings  = findViewById(R.id.btnSaveAuctionSettings);
+        photoPreview            = findViewById(R.id.photoPreview);
+        photoStatusText         = findViewById(R.id.photoStatusText);
 
-        // Extract data from notification intent
-        photoId = getIntent().getIntExtra("photo_id", -1);
-        status = getIntent().getStringExtra("status");
-        photoUrl = getIntent().getStringExtra("photo_url");
+        // 2) Extract Intent extras
+        Intent intent = getIntent();
+        photoId  = intent.getIntExtra("photo_id", -1);
+        status   = intent.getStringExtra("status");
+        photoUrl = intent.getStringExtra("photo_url");
 
-        photoStatusText.setText("Your photo was " + status + "!");
+        // 3) Update status text
+        if (status != null) {
+            photoStatusText.setText("Your photo was " + status + "!");
+        }
 
-        // Load the photo into the preview
-        Glide.with(this).load(photoUrl).into(photoPreview);
+        // 4) Load or placeholder
+        if (photoUrl != null && !photoUrl.isEmpty()) {
+            Glide.with(this)
+                    .load(photoUrl)
+                    .placeholder(R.drawable.placeholder_image)  // your placeholder
+                    .error(R.drawable.error_image)             // your error fallback
+                    .into(photoPreview);
+        } else {
+            photoPreview.setImageResource(R.drawable.placeholder_image);
+        }
 
-        MaterialCheckBox checkAuctionable = findViewById(R.id.checkAuctionable);
-        TextInputEditText editPrice = findViewById(R.id.editPurchaseNowPrice);
-
+        // 5) Toggle price field when auctionable is checked
         checkAuctionable.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            editPrice.setEnabled(!isChecked);
+            editPurchaseNowPrice.setEnabled(!isChecked);
             if (isChecked) {
-                editPrice.setText(""); // Clear the price if auctionable
+                editPurchaseNowPrice.setText("");
             }
         });
 
+        // 6) Save button
         btnSaveAuctionSettings.setOnClickListener(v -> saveAuctionSettings());
+        Timber.d("🔍 AuctionSettingsActivity received photo_id=%d, photo_url=%s, status=%s",
+                photoId, photoUrl, status);
+
     }
 
     private void saveAuctionSettings() {
         boolean isAuctionable = checkAuctionable.isChecked();
-        String priceText = editPurchaseNowPrice.getText().toString().trim();
+        String priceText      = editPurchaseNowPrice.getText().toString().trim();
 
         if (!isAuctionable && priceText.isEmpty()) {
             Toast.makeText(this, "Please set a price or mark as auctionable.", Toast.LENGTH_SHORT).show();
@@ -78,27 +94,39 @@ public class AuctionSettingsActivity extends AppCompatActivity {
 
         double price = 0.0;
         if (!isAuctionable) {
-            price = Double.parseDouble(priceText);
+            try {
+                price = Double.parseDouble(priceText);
+            } catch (NumberFormatException e) {
+                Toast.makeText(this, "Invalid price format.", Toast.LENGTH_SHORT).show();
+                return;
+            }
         }
 
         ApiService apiService = RetrofitClient.getInstance().create(ApiService.class);
-        Call<ResponseBody> call = apiService.saveAuctionSettings(photoId, price, isAuctionable);
+        apiService.saveAuctionSettings(photoId, price, isAuctionable)
+                .enqueue(new Callback<ResponseBody>() {
+                    @Override
+                    public void onResponse(@NonNull Call<ResponseBody> call,
+                                           @NonNull Response<ResponseBody> response) {
+                        if (response.isSuccessful()) {
+                            Toast.makeText(AuctionSettingsActivity.this,
+                                    "Auction settings saved successfully!",
+                                    Toast.LENGTH_SHORT).show();
+                            finish();
+                        } else {
+                            Toast.makeText(AuctionSettingsActivity.this,
+                                    "Failed to save settings.",
+                                    Toast.LENGTH_SHORT).show();
+                        }
+                    }
 
-        call.enqueue(new Callback<ResponseBody>() {
-            @Override
-            public void onResponse(@NonNull Call<ResponseBody> call, @NonNull Response<ResponseBody> response) {
-                if (response.isSuccessful()) {
-                    Toast.makeText(AuctionSettingsActivity.this, "Auction settings saved successfully!", Toast.LENGTH_SHORT).show();
-                    finish(); // Go back after success
-                } else {
-                    Toast.makeText(AuctionSettingsActivity.this, "Failed to save settings.", Toast.LENGTH_SHORT).show();
-                }
-            }
-
-            @Override
-            public void onFailure(@NonNull Call<ResponseBody> call, @NonNull Throwable t) {
-                Toast.makeText(AuctionSettingsActivity.this, "Error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
-            }
-        });
+                    @Override
+                    public void onFailure(@NonNull Call<ResponseBody> call,
+                                          @NonNull Throwable t) {
+                        Toast.makeText(AuctionSettingsActivity.this,
+                                "Error: " + t.getMessage(),
+                                Toast.LENGTH_SHORT).show();
+                    }
+                });
     }
 }

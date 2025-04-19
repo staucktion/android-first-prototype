@@ -14,7 +14,6 @@ import org.json.JSONObject;
 
 import timber.log.Timber;
 
-// Rename from "Notification" to "StaucktionApp"
 public class StaucktionApp extends Application {
 
     private static final String ONESIGNAL_APP_ID =
@@ -24,8 +23,8 @@ public class StaucktionApp extends Application {
     public void onCreate() {
         super.onCreate();
 
-        // 1) Plant Timber only in your DEBUG build
-        if (BuildConfig.DEBUG) {               // <-- import your app's BuildConfig!
+        // 1) Plant Timber only in DEBUG builds
+        if (BuildConfig.DEBUG) {
             Timber.plant(new Timber.DebugTree());
         }
 
@@ -49,30 +48,28 @@ public class StaucktionApp extends Application {
         OneSignal.setNotificationOpenedHandler(
                 new OneSignal.OSNotificationOpenedHandler() {
                     @Override
-                    public void notificationOpened(
-                            OSNotificationOpenedResult result
-                    ) {
-                        JSONObject data =
-                                result.getNotification().getAdditionalData();
+                    public void notificationOpened(OSNotificationOpenedResult result) {
+                        JSONObject data = result.getNotification().getAdditionalData();
                         if (data == null) return;
 
-                        String target   = data.optString("target_activity", "");
-                        int    photoId  = data.optInt("photo_id", -1);
-                        String status   = data.optString("status", "");
+                        int photoId = data.optInt("photo_id", -1);
+                        String photoUrl = data.optString("photo_url", "");
+                        String status = data.optString("status", "");
 
-                        if ("AuctionSettingsActivity".equals(target)
-                                && photoId >= 0
-                        ) {
+                        if (photoId >= 0) {
                             Intent intent = new Intent(
                                     getApplicationContext(),
                                     AuctionSettingsActivity.class
-                            )
-                                    .addFlags(
-                                            Intent.FLAG_ACTIVITY_NEW_TASK
-                                                    | Intent.FLAG_ACTIVITY_CLEAR_TOP
-                                    );
+                            ).addFlags(
+                                    Intent.FLAG_ACTIVITY_NEW_TASK |
+                                            Intent.FLAG_ACTIVITY_CLEAR_TOP
+                            );
                             intent.putExtra("photo_id", photoId);
+                            intent.putExtra("photo_url", photoUrl);
                             intent.putExtra("status", status);
+                            Timber.d("🔍 AuctionSettingsActivity received photo_id=%d, photo_url=%s, status=%s",
+                                    photoId, photoUrl, status);
+
                             startActivity(intent);
                         }
                     }
