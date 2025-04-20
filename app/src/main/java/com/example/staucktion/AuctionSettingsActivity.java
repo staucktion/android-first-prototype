@@ -16,6 +16,8 @@ import com.google.android.material.imageview.ShapeableImageView;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textview.MaterialTextView;
 
+import java.io.IOException;
+
 import okhttp3.ResponseBody;
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -23,12 +25,11 @@ import retrofit2.Response;
 import timber.log.Timber;
 
 public class AuctionSettingsActivity extends AppCompatActivity {
-
-    private TextInputEditText editPurchaseNowPrice;
-    private MaterialCheckBox  checkAuctionable;
-    private MaterialButton    btnSaveAuctionSettings;
+    private TextInputEditText  editPurchaseNowPrice;
+    private MaterialCheckBox   checkAuctionable;
+    private MaterialButton     btnSaveAuctionSettings;
     private ShapeableImageView photoPreview;
-    private MaterialTextView  photoStatusText;
+    private MaterialTextView   photoStatusText;
 
     private int    photoId;
     private String photoUrl;
@@ -39,12 +40,12 @@ public class AuctionSettingsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_auction_settings);
 
-        // 1) Find your views
-        editPurchaseNowPrice    = findViewById(R.id.editPurchaseNowPrice);
-        checkAuctionable        = findViewById(R.id.checkAuctionable);
-        btnSaveAuctionSettings  = findViewById(R.id.btnSaveAuctionSettings);
-        photoPreview            = findViewById(R.id.photoPreview);
-        photoStatusText         = findViewById(R.id.photoStatusText);
+        // 1) Bind views
+        editPurchaseNowPrice   = findViewById(R.id.editPurchaseNowPrice);
+        checkAuctionable       = findViewById(R.id.checkAuctionable);
+        btnSaveAuctionSettings = findViewById(R.id.btnSaveAuctionSettings);
+        photoPreview           = findViewById(R.id.photoPreview);
+        photoStatusText        = findViewById(R.id.photoStatusText);
 
         // 2) Extract Intent extras
         Intent intent = getIntent();
@@ -52,43 +53,89 @@ public class AuctionSettingsActivity extends AppCompatActivity {
         status   = intent.getStringExtra("status");
         photoUrl = intent.getStringExtra("photo_url");
 
-        // 3) Update status text
-        if (status != null) {
-            photoStatusText.setText("Your photo was " + status + "!");
-        }
+        Timber.d("🔍 Intent extras → photo_id=%d, status=%s, photo_url=%s",
+                photoId, status, photoUrl);
 
-        // 4) Load or placeholder
+        // 3) Update status text
+        if (status == null || status.isEmpty()) {
+            status = "approved";
+        }
+        photoStatusText.setText("Your photo was " + status + "!");
+
+        // 4) Load the image
         if (photoUrl != null && !photoUrl.isEmpty()) {
+            // we already have a full URL
             Glide.with(this)
                     .load(photoUrl)
-                    .placeholder(R.drawable.placeholder_image)  // your placeholder
-                    .error(R.drawable.error_image)             // your error fallback
+                    .placeholder(R.drawable.placeholder_image)
+                    .error(R.drawable.error_image)
                     .into(photoPreview);
+
+        } else if (photoId >= 0) {
+            Timber.d("▶️ No URL passed, fetching bytes for photoId=%d", photoId);
+            ApiService svc = RetrofitClient
+                    .getInstance()
+                    .create(ApiService.class);
+
+            svc.getPhotoStream(photoId)
+                    .enqueue(new Callback<ResponseBody>() {
+                        @Override
+                        public void onResponse(@NonNull Call<ResponseBody> call,
+                                               @NonNull Response<ResponseBody> response) {
+                            if (response.isSuccessful() && response.body() != null) {
+                                try {
+                                    // read all bytes
+                                    byte[] data = response.body().bytes();
+
+                                    // now Glide can decode the byte[]
+                                    Glide.with(AuctionSettingsActivity.this)
+                                            .load(data)
+                                            .placeholder(R.drawable.placeholder_image)
+                                            .error(R.drawable.error_image)
+                                            .into(photoPreview);
+
+                                } catch (IOException e) {
+                                    Timber.e(e, "Error reading image bytes");
+                                    photoPreview.setImageResource(R.drawable.error_image);
+                                }
+                            } else {
+                                Timber.w("⚠️ Failed to stream image, HTTP %d", response.code());
+                                photoPreview.setImageResource(R.drawable.error_image);
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(@NonNull Call<ResponseBody> call,
+                                              @NonNull Throwable t) {
+                            Timber.e(t, "❌ Network error streaming photo");
+                            photoPreview.setImageResource(R.drawable.error_image);
+                        }
+                    });
+
         } else {
+            // neither ID nor URL → show placeholder
             photoPreview.setImageResource(R.drawable.placeholder_image);
         }
 
-        // 5) Toggle price field when auctionable is checked
-        checkAuctionable.setOnCheckedChangeListener((buttonView, isChecked) -> {
+        // 5) Toggle price input when auctionable is checked
+        checkAuctionable.setOnCheckedChangeListener((btn, isChecked) -> {
             editPurchaseNowPrice.setEnabled(!isChecked);
-            if (isChecked) {
-                editPurchaseNowPrice.setText("");
-            }
+            if (isChecked) editPurchaseNowPrice.setText("");
         });
 
         // 6) Save button
         btnSaveAuctionSettings.setOnClickListener(v -> saveAuctionSettings());
-        Timber.d("🔍 AuctionSettingsActivity received photo_id=%d, photo_url=%s, status=%s",
-                photoId, photoUrl, status);
-
     }
 
     private void saveAuctionSettings() {
         boolean isAuctionable = checkAuctionable.isChecked();
-        String priceText      = editPurchaseNowPrice.getText().toString().trim();
+        String  priceText     = editPurchaseNowPrice.getText().toString().trim();
 
         if (!isAuctionable && priceText.isEmpty()) {
-            Toast.makeText(this, "Please set a price or mark as auctionable.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this,
+                            "Please set a price or mark as auctionable.",
+                            Toast.LENGTH_SHORT)
+                    .show();
             return;
         }
 
@@ -97,35 +144,41 @@ public class AuctionSettingsActivity extends AppCompatActivity {
             try {
                 price = Double.parseDouble(priceText);
             } catch (NumberFormatException e) {
-                Toast.makeText(this, "Invalid price format.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this,
+                                "Invalid price format.",
+                                Toast.LENGTH_SHORT)
+                        .show();
                 return;
             }
         }
 
-        ApiService apiService = RetrofitClient.getInstance().create(ApiService.class);
-        apiService.saveAuctionSettings(photoId, price, isAuctionable)
+        RetrofitClient.getInstance()
+                .create(ApiService.class)
+                .saveAuctionSettings(photoId, price, isAuctionable)
                 .enqueue(new Callback<ResponseBody>() {
                     @Override
-                    public void onResponse(@NonNull Call<ResponseBody> call,
-                                           @NonNull Response<ResponseBody> response) {
-                        if (response.isSuccessful()) {
+                    public void onResponse(@NonNull Call<ResponseBody> c,
+                                           @NonNull Response<ResponseBody> r) {
+                        if (r.isSuccessful()) {
                             Toast.makeText(AuctionSettingsActivity.this,
-                                    "Auction settings saved successfully!",
-                                    Toast.LENGTH_SHORT).show();
+                                            "Auction settings saved successfully!",
+                                            Toast.LENGTH_SHORT)
+                                    .show();
                             finish();
                         } else {
                             Toast.makeText(AuctionSettingsActivity.this,
-                                    "Failed to save settings.",
-                                    Toast.LENGTH_SHORT).show();
+                                            "Failed to save settings.",
+                                            Toast.LENGTH_SHORT)
+                                    .show();
                         }
                     }
-
                     @Override
-                    public void onFailure(@NonNull Call<ResponseBody> call,
+                    public void onFailure(@NonNull Call<ResponseBody> c,
                                           @NonNull Throwable t) {
                         Toast.makeText(AuctionSettingsActivity.this,
-                                "Error: " + t.getMessage(),
-                                Toast.LENGTH_SHORT).show();
+                                        "Error: " + t.getMessage(),
+                                        Toast.LENGTH_SHORT)
+                                .show();
                     }
                 });
     }

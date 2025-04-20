@@ -23,6 +23,7 @@ import retrofit2.http.POST;
 import retrofit2.http.Part;
 import retrofit2.http.Path;
 import retrofit2.http.Query;
+import retrofit2.http.Streaming;
 
 public interface ApiService {
 
@@ -36,6 +37,10 @@ public interface ApiService {
             @Part("categoryId") RequestBody categoryId,
             @Part("deviceInfo") RequestBody deviceInfo
     );
+
+    @GET("photos/{photoId}")
+    @Streaming
+    Call<ResponseBody> getPhotoStream(@Path("photoId") int photoId);
 
     @POST("auth/google/android")
     Call<AuthResponse> loginWithGoogle(@Body AuthRequest authRequest);

@@ -191,6 +191,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void handleOpenCamera() {
+        // 0) Make sure they’ve selected or created a category
+        if (selectedCategoryId < 0) {
+            Toast.makeText(this,
+                    "Please select or create a category before taking a photo.",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+
         if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
             Toast.makeText(this,
                     "GPS is turned off. Please enable GPS to use the camera.",
@@ -263,9 +271,21 @@ public class MainActivity extends AppCompatActivity {
     private void updateSpinnerWithCategories(List<CategoryResponse> cats) {
         List<String> names = new ArrayList<>();
         for (CategoryResponse c : cats) names.add(c.getName());
+
         ArrayAdapter<String> adapter = new ArrayAdapter<>(
                 this, android.R.layout.simple_dropdown_item_1line, names);
         categoryAutoCompleteTextView.setAdapter(adapter);
+
+        categoryAutoCompleteTextView.setOnItemClickListener((parent, view, position, id) -> {
+            CategoryResponse picked = cats.get(position);
+            try {
+                selectedCategoryId = Integer.parseInt(picked.getId());
+                noCategoryWarning.setVisibility(View.GONE);
+                Timber.d("Category picked: %s (id=%d)", picked.getName(), selectedCategoryId);
+            } catch (NumberFormatException e) {
+                Timber.e(e, "Invalid category id: %s", picked.getId());
+            }
+        });
     }
 
     private void checkCategoryAndLaunchCamera() {
