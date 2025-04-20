@@ -75,7 +75,7 @@ public interface ApiService {
     );
 
     @POST("photos/{photoId}/auctionable")
-    Call<ResponseBody> markPhotoAuctionable(
+    Call<ResponseBody> setPhotoAuctionable(
             @Path("photoId") int photoId,
             @Body AuctionableRequest body );
 }

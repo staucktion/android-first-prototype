@@ -135,7 +135,7 @@ public class AuctionSettingsActivity extends AppCompatActivity {
 
         if (!auctionable && priceText.isEmpty()) {
             Toast.makeText(this,
-                    "Please set a price or mark as auctionable.",
+                    "Please set a price or set as auctionable.",
                     Toast.LENGTH_SHORT).show();
             return;
         }
@@ -143,7 +143,7 @@ public class AuctionSettingsActivity extends AppCompatActivity {
         if (auctionable) {
             RetrofitClient.getInstance()
                     .create(ApiService.class)
-                    .markPhotoAuctionable(
+                    .setPhotoAuctionable(
                             photoId,
                             new AuctionableRequest(true)
                     )
@@ -153,19 +153,19 @@ public class AuctionSettingsActivity extends AppCompatActivity {
                                                Response<ResponseBody> r) {
                             if (r.isSuccessful()) {
                                 Toast.makeText(AuctionSettingsActivity.this,
-                                        "Photo marked auctionable!",
+                                        "Photo set auctionable!",
                                         Toast.LENGTH_SHORT).show();
                                 finishWithResult(true);
                             } else {
                                 Toast.makeText(AuctionSettingsActivity.this,
-                                        "Failed to mark auctionable",
+                                        "Failed to set auctionable",
                                         Toast.LENGTH_SHORT).show();
                             }
                         }
                         @Override
                         public void onFailure(Call<ResponseBody> c, Throwable t) {
                             Toast.makeText(AuctionSettingsActivity.this,
-                                    "Error marking auctionable: " + t.getMessage(),
+                                    "Error setting auctionable: " + t.getMessage(),
                                     Toast.LENGTH_SHORT).show();
                         }
                     });
