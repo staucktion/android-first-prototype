@@ -6,6 +6,7 @@ import com.example.staucktion.models.CategoryRequest;
 import com.example.staucktion.models.CategoryResponse;
 import com.example.staucktion.models.LocationCreateResponse;
 import com.example.staucktion.models.LocationRequest;
+import com.example.staucktion.models.PriceRequest;
 import com.example.staucktion.models.UserInfoResponse;
 
 import java.util.List;
@@ -15,8 +16,6 @@ import okhttp3.RequestBody;
 import okhttp3.ResponseBody;
 import retrofit2.Call;
 import retrofit2.http.Body;
-import retrofit2.http.Field;
-import retrofit2.http.FormUrlEncoded;
 import retrofit2.http.GET;
 import retrofit2.http.Multipart;
 import retrofit2.http.POST;
@@ -68,11 +67,14 @@ public interface ApiService {
             @Query("longitude") double longitude,
             @Query("status") String status
     );
-    @FormUrlEncoded
-    @POST("photos/{id}/auction-settings")
-    Call<ResponseBody> saveAuctionSettings(
-            @Path("id") int photoId,
-            @Field("purchase_now_price") double purchaseNowPrice,
-            @Field("auctionable") boolean auctionable
+    @POST("photos/{id}/price")
+    Call<ResponseBody> setPurchasePrice(
+            @Path("id")   int            photoId,
+            @Body PriceRequest body
+    );
+
+    @POST("photos/{id}/auctionable")
+    Call<ResponseBody> makeAuctionable(
+            @Path("id") int photoId
     );
 }
