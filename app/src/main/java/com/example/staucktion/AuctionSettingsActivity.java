@@ -10,6 +10,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.bumptech.glide.Glide;
 import com.example.staucktion.api.ApiService;
 import com.example.staucktion.api.RetrofitClient;
+import com.example.staucktion.models.AuctionableRequest;
 import com.example.staucktion.models.PriceRequest;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.checkbox.MaterialCheckBox;
@@ -139,61 +140,67 @@ public class AuctionSettingsActivity extends AppCompatActivity {
             return;
         }
 
-        RetrofitClient.getInstance()
-                .create(ApiService.class)
-                .setPurchasePrice(photoId, new PriceRequest(
-                        auctionable ? 0 : Double.parseDouble(priceText)
-                ))
-                .enqueue(new Callback<ResponseBody>() {
-                    @Override
-                    public void onResponse(Call<ResponseBody> c,
-                                           Response<ResponseBody> r) {
-                        if (!r.isSuccessful()) {
-                            Toast.makeText(AuctionSettingsActivity.this,
-                                    "Failed to set price", Toast.LENGTH_SHORT).show();
-                            return;
+        if (auctionable) {
+            RetrofitClient.getInstance()
+                    .create(ApiService.class)
+                    .markPhotoAuctionable(
+                            photoId,
+                            new AuctionableRequest(true)
+                    )
+                    .enqueue(new Callback<ResponseBody>() {
+                        @Override
+                        public void onResponse(Call<ResponseBody> c,
+                                               Response<ResponseBody> r) {
+                            if (r.isSuccessful()) {
+                                Toast.makeText(AuctionSettingsActivity.this,
+                                        "Photo marked auctionable!",
+                                        Toast.LENGTH_SHORT).show();
+                                finishWithResult(true);
+                            } else {
+                                Toast.makeText(AuctionSettingsActivity.this,
+                                        "Failed to mark auctionable",
+                                        Toast.LENGTH_SHORT).show();
+                            }
                         }
-
-                        if (auctionable) {
-                            // now flip the auctionable bit
-                            makeAuctionable();
-                        } else {
-                            finishWithResult(false);
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Call<ResponseBody> c, Throwable t) {
-                        Toast.makeText(AuctionSettingsActivity.this,
-                                "Error: " + t.getMessage(),
-                                Toast.LENGTH_SHORT).show();
-                    }
-                });
-    }
-
-    private void makeAuctionable() {
-        RetrofitClient.getInstance()
-                .create(ApiService.class)
-                .makeAuctionable(photoId)
-                .enqueue(new Callback<ResponseBody>() {
-                    @Override
-                    public void onResponse(Call<ResponseBody> c,
-                                           Response<ResponseBody> r) {
-                        if (r.isSuccessful()) {
-                            finishWithResult(true);
-                        } else {
+                        @Override
+                        public void onFailure(Call<ResponseBody> c, Throwable t) {
                             Toast.makeText(AuctionSettingsActivity.this,
-                                    "Failed to mark auctionable",
+                                    "Error marking auctionable: " + t.getMessage(),
                                     Toast.LENGTH_SHORT).show();
                         }
-                    }
-                    @Override
-                    public void onFailure(Call<ResponseBody> c, Throwable t) {
-                        Toast.makeText(AuctionSettingsActivity.this,
-                                "Error: " + t.getMessage(),
-                                Toast.LENGTH_SHORT).show();
-                    }
-                });
+                    });
+        } else {
+            // Only set the price
+            double price;
+            try {
+                price = Double.parseDouble(priceText);
+            } catch (NumberFormatException e) {
+                Toast.makeText(this,
+                        "Invalid price format", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            RetrofitClient.getInstance()
+                    .create(ApiService.class)
+                    .setPurchasePrice(photoId, new PriceRequest(price))
+                    .enqueue(new Callback<ResponseBody>() {
+                        @Override
+                        public void onResponse(Call<ResponseBody> c,
+                                               Response<ResponseBody> r) {
+                            if (r.isSuccessful()) {
+                                finishWithResult(false);
+                            } else {
+                                Toast.makeText(AuctionSettingsActivity.this,
+                                        "Failed to set price", Toast.LENGTH_SHORT).show();
+                            }
+                        }
+                        @Override
+                        public void onFailure(Call<ResponseBody> c, Throwable t) {
+                            Toast.makeText(AuctionSettingsActivity.this,
+                                    "Error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                        }
+                    });
+        }
     }
 
     // send back to your caller which “tab” to show

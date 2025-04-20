@@ -1,5 +1,6 @@
 package com.example.staucktion.api;
 
+import com.example.staucktion.models.AuctionableRequest;
 import com.example.staucktion.models.AuthRequest;
 import com.example.staucktion.models.AuthResponse;
 import com.example.staucktion.models.CategoryRequest;
@@ -67,14 +68,14 @@ public interface ApiService {
             @Query("longitude") double longitude,
             @Query("status") String status
     );
-    @POST("photos/{id}/price")
+    @POST("photos/{photoId}/price")
     Call<ResponseBody> setPurchasePrice(
-            @Path("id")   int            photoId,
+            @Path("photoId")   int            photoId,
             @Body PriceRequest body
     );
 
-    @POST("photos/{id}/auctionable")
-    Call<ResponseBody> makeAuctionable(
-            @Path("id") int photoId
-    );
+    @POST("photos/{photoId}/auctionable")
+    Call<ResponseBody> markPhotoAuctionable(
+            @Path("photoId") int photoId,
+            @Body AuctionableRequest body );
 }
