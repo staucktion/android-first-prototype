@@ -1,11 +1,14 @@
 package com.example.staucktion.api;
 
+import com.example.staucktion.models.AuctionableRequest;
 import com.example.staucktion.models.AuthRequest;
 import com.example.staucktion.models.AuthResponse;
 import com.example.staucktion.models.CategoryRequest;
 import com.example.staucktion.models.CategoryResponse;
 import com.example.staucktion.models.LocationCreateResponse;
 import com.example.staucktion.models.LocationRequest;
+import com.example.staucktion.models.PriceRequest;
+import com.example.staucktion.models.UserInfoResponse;
 
 import java.util.List;
 
@@ -20,6 +23,7 @@ import retrofit2.http.POST;
 import retrofit2.http.Part;
 import retrofit2.http.Path;
 import retrofit2.http.Query;
+import retrofit2.http.Streaming;
 
 public interface ApiService {
 
@@ -34,8 +38,16 @@ public interface ApiService {
             @Part("deviceInfo") RequestBody deviceInfo
     );
 
+    @GET("photos/{photoId}")
+    @Streaming
+    Call<ResponseBody> getPhotoStream(@Path("photoId") int photoId);
+
     @POST("auth/google/android")
     Call<AuthResponse> loginWithGoogle(@Body AuthRequest authRequest);
+
+    // ← new auth/info endpoint
+    @POST("auth/info")
+    Call<UserInfoResponse> getUserInfo();
 
     @POST("locations")
     Call<LocationCreateResponse> createLocation(@Body LocationRequest locationRequest);
@@ -56,4 +68,14 @@ public interface ApiService {
             @Query("longitude") double longitude,
             @Query("status") String status
     );
+    @POST("photos/{photoId}/price")
+    Call<Void> setPurchasePrice(
+            @Path("photoId")   int            photoId,
+            @Body PriceRequest body
+    );
+
+    @POST("photos/{photoId}/auctionable")
+    Call<Void> setPhotoAuctionable(
+            @Path("photoId") int photoId,
+            @Body AuctionableRequest body );
 }
