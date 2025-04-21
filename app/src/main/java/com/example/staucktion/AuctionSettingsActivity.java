@@ -131,76 +131,78 @@ public class AuctionSettingsActivity extends AppCompatActivity {
 
     private void saveAuctionSettings() {
         boolean auctionable = checkAuctionable.isChecked();
-        String  priceText   = editPurchaseNowPrice.getText().toString().trim();
+        String priceText   = editPurchaseNowPrice.getText().toString().trim();
 
+        // validation
         if (!auctionable && priceText.isEmpty()) {
             Toast.makeText(this,
-                    "Please set a price or set as auctionable.",
-                    Toast.LENGTH_SHORT).show();
+                    "Please set a price or mark as auctionable.",
+                    Toast.LENGTH_SHORT
+            ).show();
             return;
         }
 
+        // Disable UI
+        btnSaveAuctionSettings.setEnabled(false);
+        btnSaveAuctionSettings.setText("Saving…");
+
+        // Pick the right call
+        Call<Void> call;
         if (auctionable) {
-            RetrofitClient.getInstance()
+            call = RetrofitClient.getInstance()
                     .create(ApiService.class)
-                    .setPhotoAuctionable(
-                            photoId,
-                            new AuctionableRequest(true)
-                    )
-                    .enqueue(new Callback<ResponseBody>() {
-                        @Override
-                        public void onResponse(Call<ResponseBody> c,
-                                               Response<ResponseBody> r) {
-                            if (r.isSuccessful()) {
-                                Toast.makeText(AuctionSettingsActivity.this,
-                                        "Photo set auctionable!",
-                                        Toast.LENGTH_SHORT).show();
-                                finishWithResult(true);
-                            } else {
-                                Toast.makeText(AuctionSettingsActivity.this,
-                                        "Failed to set auctionable",
-                                        Toast.LENGTH_SHORT).show();
-                            }
-                        }
-                        @Override
-                        public void onFailure(Call<ResponseBody> c, Throwable t) {
-                            Toast.makeText(AuctionSettingsActivity.this,
-                                    "Error setting auctionable: " + t.getMessage(),
-                                    Toast.LENGTH_SHORT).show();
-                        }
-                    });
+                    .setPhotoAuctionable(photoId, new AuctionableRequest(true));
         } else {
-            // Only set the price
             double price;
             try {
                 price = Double.parseDouble(priceText);
             } catch (NumberFormatException e) {
                 Toast.makeText(this,
-                        "Invalid price format", Toast.LENGTH_SHORT).show();
+                        "Invalid price format",
+                        Toast.LENGTH_SHORT
+                ).show();
+                btnSaveAuctionSettings.setEnabled(true);
+                btnSaveAuctionSettings.setText("Save");
                 return;
             }
-
-            RetrofitClient.getInstance()
+            call = RetrofitClient.getInstance()
                     .create(ApiService.class)
-                    .setPurchasePrice(photoId, new PriceRequest(price))
-                    .enqueue(new Callback<ResponseBody>() {
-                        @Override
-                        public void onResponse(Call<ResponseBody> c,
-                                               Response<ResponseBody> r) {
-                            if (r.isSuccessful()) {
-                                finishWithResult(false);
-                            } else {
-                                Toast.makeText(AuctionSettingsActivity.this,
-                                        "Failed to set price", Toast.LENGTH_SHORT).show();
-                            }
-                        }
-                        @Override
-                        public void onFailure(Call<ResponseBody> c, Throwable t) {
-                            Toast.makeText(AuctionSettingsActivity.this,
-                                    "Error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
-                        }
-                    });
+                    .setPurchasePrice(photoId, new PriceRequest(price));
         }
+
+        // Fire-and-forget, Retrofit does IO off the main thread automatically
+        call.enqueue(new Callback<Void>() {
+            @Override
+            public void onResponse(Call<Void> call, Response<Void> res) {
+                btnSaveAuctionSettings.setEnabled(true);
+                btnSaveAuctionSettings.setText("Save");
+
+                if (res.isSuccessful()) {
+                    Toast.makeText(AuctionSettingsActivity.this,
+                            auctionable
+                                    ? "Photo set auctionable!"
+                                    : "Price saved!",
+                            Toast.LENGTH_SHORT
+                    ).show();
+                    finishWithResult(auctionable);
+                } else {
+                    Toast.makeText(AuctionSettingsActivity.this,
+                            "Save failed: HTTP " + res.code(),
+                            Toast.LENGTH_SHORT
+                    ).show();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<Void> call, Throwable t) {
+                btnSaveAuctionSettings.setEnabled(true);
+                btnSaveAuctionSettings.setText("Save");
+                Toast.makeText(AuctionSettingsActivity.this,
+                        "Network error: " + t.getMessage(),
+                        Toast.LENGTH_SHORT
+                ).show();
+            }
+        });
     }
 
     // send back to your caller which “tab” to show

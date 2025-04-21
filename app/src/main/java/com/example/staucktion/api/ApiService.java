@@ -69,13 +69,13 @@ public interface ApiService {
             @Query("status") String status
     );
     @POST("photos/{photoId}/price")
-    Call<ResponseBody> setPurchasePrice(
+    Call<Void> setPurchasePrice(
             @Path("photoId")   int            photoId,
             @Body PriceRequest body
     );
 
     @POST("photos/{photoId}/auctionable")
-    Call<ResponseBody> setPhotoAuctionable(
+    Call<Void> setPhotoAuctionable(
             @Path("photoId") int photoId,
             @Body AuctionableRequest body );
 }
