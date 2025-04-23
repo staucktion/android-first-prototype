@@ -182,7 +182,7 @@ public class MainActivity extends AppCompatActivity {
         // 0) Make sure they’ve selected or created a category
         if (selectedCategoryId < 0) {
             Toast.makeText(this,
-                    "Please select or create a category before taking a photo.",
+                    "Please select or create a theme before taking a photo.",
                     Toast.LENGTH_LONG).show();
             return;
         }
@@ -269,9 +269,9 @@ public class MainActivity extends AppCompatActivity {
             try {
                 selectedCategoryId = Integer.parseInt(picked.getId());
                 noCategoryWarning.setVisibility(View.GONE);
-                Timber.d("Category picked: %s (id=%d)", picked.getName(), selectedCategoryId);
+                Timber.d("Theme picked: %s (id=%d)", picked.getName(), selectedCategoryId);
             } catch (NumberFormatException e) {
-                Timber.e(e, "Invalid category id: %s", picked.getId());
+                Timber.e(e, "Invalid theme id: %s", picked.getId());
             }
         });
     }
@@ -295,7 +295,7 @@ public class MainActivity extends AppCompatActivity {
                                         Integer.parseInt(res.body().get(0).getId());
                                 launchCamera();
                             } catch (NumberFormatException e) {
-                                Timber.e(e, "Invalid category ID");
+                                Timber.e(e, "Invalid theme ID");
                                 promptForCategoryNameAndCreateCategory(
                                         currentLatitude, currentLongitude);
                             }
@@ -321,13 +321,13 @@ public class MainActivity extends AppCompatActivity {
         EditText     input = view.findViewById(R.id.editCategoryName);
 
         new MaterialAlertDialogBuilder(this)
-                .setTitle("Enter Category Name")
+                .setTitle("Enter Theme Name")
                 .setView(view)
                 .setPositiveButton("OK", (dlg, which) -> {
                     String name = input.getText().toString().trim();
                     if (name.isEmpty()) {
                         Toast.makeText(this,
-                                "Category name cannot be empty",
+                                "Theme name cannot be empty",
                                 Toast.LENGTH_SHORT).show();
                     } else {
                         createLocationAndCategory(lat, lng, name);
@@ -398,14 +398,14 @@ public class MainActivity extends AppCompatActivity {
                             }
                         } else {
                             Toast.makeText(MainActivity.this,
-                                    "Category creation failed",
+                                    "Theme creation failed",
                                     Toast.LENGTH_SHORT).show();
                         }
                     }
                     @Override
                     public void onFailure(@NonNull Call<CategoryResponse> call,
                                           @NonNull Throwable t) {
-                        Timber.e(t, "Failed to create category");
+                        Timber.e(t, "Failed to create theme");
                         Toast.makeText(MainActivity.this,
                                 "Network error.", Toast.LENGTH_SHORT).show();
                     }
@@ -594,7 +594,7 @@ public class MainActivity extends AppCompatActivity {
             String path = data.getStringExtra("image_path");
             Intent intent = new Intent(this, ApiActivity.class);
             intent.putExtra("image_path", path);
-            intent.putExtra("category_id", selectedCategoryId);
+            intent.putExtra("theme_id", selectedCategoryId);
             startActivity(intent);
             refreshCategories();
         } else {
