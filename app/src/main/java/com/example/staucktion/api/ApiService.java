@@ -5,6 +5,7 @@ import com.example.staucktion.models.AuthRequest;
 import com.example.staucktion.models.AuthResponse;
 import com.example.staucktion.models.CategoryRequest;
 import com.example.staucktion.models.CategoryResponse;
+import com.example.staucktion.models.EmailAuthRequest;
 import com.example.staucktion.models.LocationCreateResponse;
 import com.example.staucktion.models.LocationRequest;
 import com.example.staucktion.models.PriceRequest;
@@ -45,6 +46,9 @@ public interface ApiService {
     @POST("auth/google/android")
     Call<AuthResponse> loginWithGoogle(@Body AuthRequest authRequest);
 
+    // 1️⃣ Email/password login
+    @POST("auth/login/android")
+    Call<AuthResponse> loginWithEmail(@Body EmailAuthRequest body);
     // ← new auth/info endpoint
     @POST("auth/info")
     Call<UserInfoResponse> getUserInfo();
