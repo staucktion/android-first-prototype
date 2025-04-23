@@ -59,7 +59,7 @@ public class ApiActivity extends AppCompatActivity {
         deviceInfo = getDeviceInfo();
 
         imagePath = getIntent().getStringExtra("image_path");
-        categoryId = getIntent().getIntExtra("category_id", -1);
+        categoryId = getIntent().getIntExtra("theme_id", -1);
 
         if (categoryId == -1 || imagePath == null || imagePath.isEmpty()) {
             Toast.makeText(this, "Required data missing.", Toast.LENGTH_SHORT).show();

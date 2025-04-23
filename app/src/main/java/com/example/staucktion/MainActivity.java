@@ -71,7 +71,6 @@ public class MainActivity extends AppCompatActivity {
     private static final int CAMERA_REQUEST_CODE                = 100;
     private static final int LOCATION_PERMISSION_REQUEST_CODE   = 101;
     private static final int CAMERA_PERMISSION_REQUEST_CODE     = 102;
-    private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 103;
 
     private LocationManager locationManager;
     private FusedLocationProviderClient fusedLocationClient;
@@ -128,17 +127,6 @@ public class MainActivity extends AppCompatActivity {
         // 2) Validate JWT (else redirect to LoginActivity)
         if (!validateToken()) {
             return;   // we’ll never hit the notification prompt if not logged in
-        }
-
-        // 3) Notification permission (Android 13+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-                && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                    this,
-                    new String[]{ Manifest.permission.POST_NOTIFICATIONS },
-                    NOTIFICATION_PERMISSION_REQUEST_CODE
-            );
         }
 
         // 4) Init services
@@ -260,9 +248,9 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void onFailure(@NonNull Call<List<CategoryResponse>> call,
                                           @NonNull Throwable t) {
-                        Timber.e(t, "Error loading categories");
+                        Timber.e(t, "Error loading themes");
                         Toast.makeText(MainActivity.this,
-                                "Failed to load categories.", Toast.LENGTH_SHORT).show();
+                                "Failed to load themes.", Toast.LENGTH_SHORT).show();
                         noCategoryWarning.setVisibility(View.VISIBLE);
                     }
                 });
@@ -319,7 +307,7 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void onFailure(@NonNull Call<List<CategoryResponse>> call,
                                           @NonNull Throwable t) {
-                        Timber.e(t, "Error checking categories");
+                        Timber.e(t, "Error checking themes");
                         Toast.makeText(MainActivity.this,
                                 "Network error.", Toast.LENGTH_SHORT).show();
                     }
@@ -490,18 +478,6 @@ public class MainActivity extends AppCompatActivity {
                 } else {
                     Toast.makeText(this,
                             "Camera permission required.",
-                            Toast.LENGTH_SHORT).show();
-                }
-                break;
-
-            case NOTIFICATION_PERMISSION_REQUEST_CODE:
-                if (grantResults.length > 0
-                        && grantResults[0]
-                        == PackageManager.PERMISSION_GRANTED) {
-                    Timber.d("Notification permission granted");
-                } else {
-                    Toast.makeText(this,
-                            "Notification permission required.",
                             Toast.LENGTH_SHORT).show();
                 }
                 break;

@@ -5,6 +5,8 @@ import static com.example.staucktion.R.layout.activity_login;
 import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.Toast;
@@ -12,6 +14,8 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.example.staucktion.api.ApiService;
 import com.example.staucktion.api.RetrofitClient;
@@ -24,7 +28,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInClient;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.tasks.Task;
-import com.google.gson.Gson;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.onesignal.OneSignal;
 import com.onesignal.OneSignal.ExternalIdError;
 import com.onesignal.OneSignal.OSExternalUserIdUpdateCompletionHandler;
@@ -195,6 +199,54 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private void goToMainActivity() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(LoginActivity.this, android.Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+
+                if (ActivityCompat.shouldShowRequestPermissionRationale(LoginActivity.this, android.Manifest.permission.POST_NOTIFICATIONS)) {
+                    new MaterialAlertDialogBuilder(this)
+                            .setTitle("Enable Notifications")
+                            .setMessage("Notifications help you stay updated. Please enable them.")
+                            .setPositiveButton("Allow", (dialog, which) -> ActivityCompat.requestPermissions(
+                                    LoginActivity.this,
+                                    new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
+                                    1001
+                            ))
+                            .setNegativeButton("Not Now", (dialog, which) -> navigateToMain())
+                            .show();
+                } else {
+                    ActivityCompat.requestPermissions(
+                            LoginActivity.this,
+                            new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
+                            1001
+                    );
+                }
+
+            } else {
+                navigateToMain();
+            }
+        } else {
+            navigateToMain();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+                                           @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == 1001) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Notifications enabled.", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Notifications are disabled. You can enable them anytime from settings.", Toast.LENGTH_LONG).show();
+            }
+            navigateToMain();
+        }
+    }
+
+    private void navigateToMain() {
         startActivity(new Intent(this, MainActivity.class));
         finish();
     }
