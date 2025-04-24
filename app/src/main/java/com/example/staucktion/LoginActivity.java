@@ -28,6 +28,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInClient;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.tasks.Task;
+import com.google.android.material.button.MaterialButton;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.onesignal.OneSignal;
 import com.onesignal.OneSignal.ExternalIdError;
@@ -72,13 +73,18 @@ public class LoginActivity extends AppCompatActivity {
 
 
         // 4) Otherwise show the “Sign in with Google” button:
-        Button btnLogin = findViewById(R.id.btnLogin);
-        btnLogin.setOnClickListener(v ->
+        @SuppressLint({"WrongViewCast", "MissingInflatedId", "LocalSuppress"}) Button btnGoogleLogin = findViewById(R.id.btnGoogleLogin);
+        btnGoogleLogin.setOnClickListener(v ->
                 startActivityForResult(
                         googleSignInClient.getSignInIntent(),
                         RC_SIGN_IN
                 )
         );
+        @SuppressLint({"MissingInflatedId", "LocalSuppress"}) MaterialButton btnViaEmail = findViewById(R.id.btnViaEmail);
+        btnViaEmail.setOnClickListener(v ->
+                startActivity(new Intent(this, EmailLoginActivity.class))
+        );
+
     }
 
     @SuppressLint("LogNotTimber")
