@@ -1,3 +1,4 @@
+// src/main/java/com/example/staucktion/MainActivity.java
 package com.example.staucktion;
 
 import android.Manifest;
@@ -11,10 +12,10 @@ import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.LocationManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.WindowManager;
@@ -40,9 +41,9 @@ import com.example.staucktion.managers.LocationApiManager;
 import com.example.staucktion.models.CategoryRequest;
 import com.example.staucktion.models.CategoryResponse;
 import com.example.staucktion.models.LocationCreateResponse;
+import com.example.staucktion.models.UserInfoResponse;
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInClient;
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
@@ -63,154 +64,191 @@ import retrofit2.Callback;
 import retrofit2.Response;
 import timber.log.Timber;
 
-class StatusEnum {
-    public static final int WAIT = 2;
-}
+class StatusEnum { public static final int WAIT = 2; }
 
 public class MainActivity extends AppCompatActivity {
-    private static final int CAMERA_REQUEST_CODE                = 100;
-    private static final int LOCATION_PERMISSION_REQUEST_CODE   = 101;
-    private static final int CAMERA_PERMISSION_REQUEST_CODE     = 102;
-    private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 103;
+    private static final int CAMERA_REQ_CODE   = 100;
+    private static final int LOC_PERM_REQ_CODE = 101;
+    private static final int CAM_PERM_REQ_CODE = 102;
 
-    private LocationManager locationManager;
-    private FusedLocationProviderClient fusedLocationClient;
-    private double currentLatitude, currentLongitude;
+    // services & UI
+    private ApiService                   apiService;
+    private LocationManager              locationManager;
+    private FusedLocationProviderClient  fusedLocationClient;
+    private LocationApiManager           locationApiManager;
+    private AutoCompleteTextView         categorySpinner;
+    private MaterialTextView             noCategoryWarning;
+    private MaterialButton               createCategoryBtn;
+    private TextView                     textAvatar;
 
-    private int selectedCategoryId = -1;
-    private List<CategoryResponse> loadedCategories = new ArrayList<>();
-    private ApiService apiService;
-    private LocationApiManager locationApiManager;
+    // state
+    private double                       currentLatitude, currentLongitude;
+    private int                          selectedCategoryId = -1;
+    private List<CategoryResponse> loadedCategories  = new ArrayList<>();
 
-    private AutoCompleteTextView categoryAutoCompleteTextView;
-    private MaterialTextView       noCategoryWarning;
-    private MaterialButton         createCategoryButton;
-    private TextView               textAvatar;
-    private GoogleSignInClient     googleSignInClient;
-
-    private final Handler categoryRefreshHandler = new Handler(Looper.getMainLooper());
+    // for refreshing categories
     private final Handler categoryHandler = new Handler(Looper.getMainLooper());
-
     private final Runnable categoryRefreshRunnable = new Runnable() {
-        @Override
-        public void run() {
-            refreshCategories();
-            // here `this` refers to the Runnable
+        @Override public void run() {
+            loadApprovedCategories(currentLatitude, currentLongitude);
             categoryHandler.postDelayed(this, 10_000);
         }
     };
 
-    private final BroadcastReceiver locationChangeReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context ctx, Intent intent) {
+    // listen for GPS toggles while in camera
+    private final BroadcastReceiver gpsToggleReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context ctx, Intent intent) {
             if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
-                prefs.edit().putBoolean("gpsDisabledDuringCamera", true).apply();
                 sendBroadcast(new Intent("com.example.staucktion.KILL_CAMERA_ACTIVITY"));
             }
         }
     };
+    private static final String TAG = "MainActivity";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         Timber.plant(new Timber.DebugTree());
-        Timber.i("Starting MainActivity");
 
-        // 1) Toolbar & avatar popup
+        apiService = RetrofitClient.getInstance().create(ApiService.class);
+
+        // 1) Local expiry check
+        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
+        String token = prefs.getString("appToken", null);
+        long   expiry = prefs.getLong("appTokenExpiry", 0);
+        long now    = System.currentTimeMillis();
+
+        Log.d(TAG, "onCreate: token=" + token +
+                "  expiry=" + expiry +
+                "  now="    + now +
+                "  expired?=" + (now > expiry));
+        if (token == null || now > expiry) {
+            Log.d(TAG, "→ token invalid or expired, redirecting to login");
+
+            // no valid token → go to login
+            prefs.edit().clear().apply();
+            redirectToLogin();
+            return;
+        }
+
+        // 2) Tell Retrofit about it
+        RetrofitClient.getInstance().setAuthToken(token);
+
+        // 3) Verify on server before showing the UI
+        apiService.getUserInfo().enqueue(new Callback<UserInfoResponse>() {
+            @Override public void onResponse(
+                    @NonNull Call<UserInfoResponse> call,
+                    @NonNull Response<UserInfoResponse> resp) {
+                if (resp.isSuccessful()
+                        && resp.body() != null
+                        && resp.body().getUser() != null) {
+                    // ✅ token is valid on server → initialize UI
+                    runOnUiThread(() -> initAfterAuth());
+                } else {
+                    // ❌ invalid on server → clear & redirect
+                    prefs.edit().clear().apply();
+                    runOnUiThread(() -> {
+                        Toast.makeText(MainActivity.this,
+                                "Session expired, please log in again.",
+                                Toast.LENGTH_LONG).show();
+                        redirectToLogin();
+                    });
+                }
+            }
+            @Override public void onFailure(
+                    @NonNull Call<UserInfoResponse> call,
+                    @NonNull Throwable t) {
+                // network error verifying session → still let user in
+                Timber.e(t, "Could not verify session");
+                runOnUiThread(() -> initAfterAuth());
+            }
+        });
+    }
+
+    private void redirectToLogin() {
+        startActivity(new Intent(this, LoginActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
+                        Intent.FLAG_ACTIVITY_CLEAR_TASK));
+        finish();
+    }
+
+    @SuppressLint("MissingPermission")
+    private void initAfterAuth() {
+        // —— Toolbar & Avatar Popup ——
         MaterialToolbar toolbar = findViewById(R.id.topAppBar);
         textAvatar = toolbar.findViewById(R.id.textAvatar);
         textAvatar.setOnClickListener(this::showAvatarPopup);
+        toolbar.findViewById(R.id.logoutIcon)
+                .setOnClickListener(v -> performLogout());
         loadUserProfile();
-        toolbar.findViewById(R.id.logoutIcon).setOnClickListener(v -> performLogout());
 
-        // 2) Validate JWT (else redirect to LoginActivity)
-        if (!validateToken()) {
-            return;   // we’ll never hit the notification prompt if not logged in
-        }
-
-        // 3) Notification permission (Android 13+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-                && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                    this,
-                    new String[]{ Manifest.permission.POST_NOTIFICATIONS },
-                    NOTIFICATION_PERMISSION_REQUEST_CODE
-            );
-        }
-
-        // 4) Init services
-        apiService          = RetrofitClient.getInstance().create(ApiService.class);
-        locationApiManager  = new LocationApiManager();
-        locationManager     = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        // —— Location & Services ——
+        locationManager     = (LocationManager) getSystemService(LOCATION_SERVICE);
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+        locationApiManager  = new LocationApiManager();
 
-        // 5) Find all UI views
-        categoryAutoCompleteTextView = findViewById(R.id.categoryAutoCompleteTextView);
-        noCategoryWarning            = findViewById(R.id.noCategoryWarning);
-        createCategoryButton         = findViewById(R.id.createCategoryButton);
-        Button openCameraBtn         = findViewById(R.id.openCamerabtn);
+        // —— Wire up UI ——
+        categorySpinner   = findViewById(R.id.categoryAutoCompleteTextView);
+        noCategoryWarning = findViewById(R.id.noCategoryWarning);
+        createCategoryBtn = findViewById(R.id.createCategoryButton);
+        Button openCameraBtn = findViewById(R.id.openCamerabtn);
 
-        // 6) Hooks
-        createCategoryButton.setOnClickListener(v ->
-                promptForCategoryNameAndCreateCategory(currentLatitude, currentLongitude)
-        );
+        createCategoryBtn.setOnClickListener(v ->
+                promptForCategoryNameAndCreateCategory(currentLatitude, currentLongitude));
         openCameraBtn.setOnClickListener(v -> handleOpenCamera());
 
-        // 7) Location permission
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+        // —— Location Permission & Initial Load ——
+        if (ContextCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                    this,
-                    new String[]{ Manifest.permission.ACCESS_FINE_LOCATION,
-                            Manifest.permission.ACCESS_COARSE_LOCATION },
-                    LOCATION_PERMISSION_REQUEST_CODE
-            );
+            ActivityCompat.requestPermissions(this,
+                    new String[]{
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                    },
+                    LOC_PERM_REQ_CODE);
         } else {
             getLastLocation();
         }
 
-        // 8) Start periodic category refresh
+        // —— Periodic Refresh ——
         categoryHandler.postDelayed(categoryRefreshRunnable, 10_000);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        registerReceiver(locationChangeReceiver,
+        registerReceiver(gpsToggleReceiver,
                 new IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION));
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        unregisterReceiver(locationChangeReceiver);
-        categoryRefreshHandler.removeCallbacks(categoryRefreshRunnable);
+        unregisterReceiver(gpsToggleReceiver);
+        categoryHandler.removeCallbacks(categoryRefreshRunnable);
     }
 
     private void handleOpenCamera() {
-        // 0) Make sure they’ve selected or created a category
         if (selectedCategoryId < 0) {
             Toast.makeText(this,
-                    "Please select or create a category before taking a photo.",
+                    "Please select or create a category first.",
                     Toast.LENGTH_LONG).show();
             return;
         }
-
         if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
             Toast.makeText(this,
-                    "GPS is turned off. Please enable GPS to use the camera.",
+                    "GPS must be enabled to take photos.",
                     Toast.LENGTH_LONG).show();
             return;
         }
-
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+        if (ContextCompat.checkSelfPermission(this,
+                Manifest.permission.CAMERA)
                 != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this,
-                    new String[]{ Manifest.permission.CAMERA },
-                    CAMERA_PERMISSION_REQUEST_CODE);
+                    new String[]{Manifest.permission.CAMERA},
+                    CAM_PERM_REQ_CODE);
         } else {
             checkCategoryAndLaunchCamera();
         }
@@ -220,18 +258,16 @@ public class MainActivity extends AppCompatActivity {
     private void getLastLocation() {
         LocationRequest req = LocationRequest.create()
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
-                .setInterval(5000)
-                .setFastestInterval(2000);
+                .setInterval(5_000)
+                .setFastestInterval(2_000);
 
         fusedLocationClient.requestLocationUpdates(req,
                 new LocationCallback() {
-                    @Override
-                    public void onLocationResult(@NonNull LocationResult result) {
+                    @Override public void onLocationResult(@NonNull LocationResult result) {
                         fusedLocationClient.removeLocationUpdates(this);
                         if (result.getLastLocation() != null) {
                             currentLatitude  = result.getLastLocation().getLatitude();
                             currentLongitude = result.getLastLocation().getLongitude();
-                            Timber.i("Location: %f, %f", currentLatitude, currentLongitude);
                             loadApprovedCategories(currentLatitude, currentLongitude);
                         } else {
                             showLocationErrorDialog();
@@ -243,104 +279,69 @@ public class MainActivity extends AppCompatActivity {
     private void loadApprovedCategories(double lat, double lng) {
         apiService.getApprovedCategoriesByCoordinates(lat, lng, "APPROVE")
                 .enqueue(new Callback<List<CategoryResponse>>() {
-                    @Override
-                    public void onResponse(@NonNull Call<List<CategoryResponse>> call,
-                                           @NonNull Response<List<CategoryResponse>> res) {
+                    @Override public void onResponse(
+                            @NonNull Call<List<CategoryResponse>> call,
+                            @NonNull Response<List<CategoryResponse>> res) {
                         if (res.isSuccessful() && res.body() != null) {
                             loadedCategories = res.body();
-                            updateSpinnerWithCategories(loadedCategories);
+                            updateSpinner(loadedCategories);
                             noCategoryWarning.setVisibility(
-                                    loadedCategories.isEmpty() ? View.VISIBLE : View.GONE
-                            );
+                                    loadedCategories.isEmpty() ? View.VISIBLE : View.GONE);
                         } else {
                             noCategoryWarning.setVisibility(View.VISIBLE);
                         }
                     }
-
-                    @Override
-                    public void onFailure(@NonNull Call<List<CategoryResponse>> call,
-                                          @NonNull Throwable t) {
+                    @Override public void onFailure(
+                            @NonNull Call<List<CategoryResponse>> call,
+                            @NonNull Throwable t) {
                         Timber.e(t, "Error loading categories");
                         Toast.makeText(MainActivity.this,
-                                "Failed to load categories.", Toast.LENGTH_SHORT).show();
+                                "Failed to load categories", Toast.LENGTH_SHORT).show();
                         noCategoryWarning.setVisibility(View.VISIBLE);
                     }
                 });
     }
 
-    private void updateSpinnerWithCategories(List<CategoryResponse> cats) {
+    private void updateSpinner(List<CategoryResponse> cats) {
         List<String> names = new ArrayList<>();
         for (CategoryResponse c : cats) names.add(c.getName());
-
         ArrayAdapter<String> adapter = new ArrayAdapter<>(
                 this, android.R.layout.simple_dropdown_item_1line, names);
-        categoryAutoCompleteTextView.setAdapter(adapter);
-
-        categoryAutoCompleteTextView.setOnItemClickListener((parent, view, position, id) -> {
-            CategoryResponse picked = cats.get(position);
+        categorySpinner.setAdapter(adapter);
+        categorySpinner.setOnItemClickListener((p,v,pos,id) -> {
             try {
-                selectedCategoryId = Integer.parseInt(picked.getId());
+                selectedCategoryId = Integer.parseInt(cats.get(pos).getId());
                 noCategoryWarning.setVisibility(View.GONE);
-                Timber.d("Category picked: %s (id=%d)", picked.getName(), selectedCategoryId);
-            } catch (NumberFormatException e) {
-                Timber.e(e, "Invalid category id: %s", picked.getId());
+            } catch (NumberFormatException ex) {
+                Timber.e(ex, "Invalid category id");
             }
         });
     }
 
     private void checkCategoryAndLaunchCamera() {
-        if (currentLatitude == 0 && currentLongitude == 0) {
-            getLastLocation();
-            return;
+        if (loadedCategories.isEmpty()) {
+            promptForCategoryNameAndCreateCategory(
+                    currentLatitude, currentLongitude);
+        } else {
+            selectedCategoryId =
+                    Integer.parseInt(loadedCategories.get(0).getId());
+            launchCamera();
         }
-
-        apiService.getApprovedCategoriesByCoordinates(
-                        currentLatitude, currentLongitude, "APPROVE")
-                .enqueue(new Callback<List<CategoryResponse>>() {
-                    @Override
-                    public void onResponse(@NonNull Call<List<CategoryResponse>> call,
-                                           @NonNull Response<List<CategoryResponse>> res) {
-                        if (res.isSuccessful() && res.body() != null
-                                && !res.body().isEmpty()) {
-                            try {
-                                selectedCategoryId =
-                                        Integer.parseInt(res.body().get(0).getId());
-                                launchCamera();
-                            } catch (NumberFormatException e) {
-                                Timber.e(e, "Invalid category ID");
-                                promptForCategoryNameAndCreateCategory(
-                                        currentLatitude, currentLongitude);
-                            }
-                        } else {
-                            promptForCategoryNameAndCreateCategory(
-                                    currentLatitude, currentLongitude);
-                        }
-                    }
-                    @Override
-                    public void onFailure(@NonNull Call<List<CategoryResponse>> call,
-                                          @NonNull Throwable t) {
-                        Timber.e(t, "Error checking categories");
-                        Toast.makeText(MainActivity.this,
-                                "Network error.", Toast.LENGTH_SHORT).show();
-                    }
-                });
     }
 
     private void promptForCategoryNameAndCreateCategory(
             double lat, double lng) {
-        View         view  = LayoutInflater.from(this)
+        View dialog = LayoutInflater.from(this)
                 .inflate(R.layout.dialog_category, null);
-        EditText     input = view.findViewById(R.id.editCategoryName);
-
+        EditText input = dialog.findViewById(R.id.editCategoryName);
         new MaterialAlertDialogBuilder(this)
                 .setTitle("Enter Category Name")
-                .setView(view)
-                .setPositiveButton("OK", (dlg, which) -> {
+                .setView(dialog)
+                .setPositiveButton("OK", (d,w)->{
                     String name = input.getText().toString().trim();
                     if (name.isEmpty()) {
                         Toast.makeText(this,
-                                "Category name cannot be empty",
-                                Toast.LENGTH_SHORT).show();
+                                "Name cannot be empty", Toast.LENGTH_SHORT).show();
                     } else {
                         createLocationAndCategory(lat, lng, name);
                     }
@@ -353,73 +354,55 @@ public class MainActivity extends AppCompatActivity {
             double lat, double lng, String name) {
         locationApiManager.createLocation(lat, lng,
                 new Callback<LocationCreateResponse>() {
-                    @Override
-                    public void onResponse(@NonNull Call<LocationCreateResponse> call,
-                                           @NonNull Response<LocationCreateResponse> res) {
+                    @Override public void onResponse(
+                            @NonNull Call<LocationCreateResponse> call,
+                            @NonNull Response<LocationCreateResponse> res) {
                         if (res.isSuccessful()
-                                && res.body() != null
-                                && res.body().getLocation() != null) {
-                            try {
-                                int locationId = Integer.parseInt(
-                                        res.body().getLocation().getId());
-                                getAddressFromCoordinates(lat, lng, address ->
-                                        createCategory(locationId, name, address)
-                                );
-                            } catch (NumberFormatException e) {
-                                Toast.makeText(MainActivity.this,
-                                        "Error creating location.",
-                                        Toast.LENGTH_SHORT).show();
-                            }
+                                && res.body()!=null
+                                && res.body().getLocation()!=null) {
+                            int locId = Integer.parseInt(
+                                    res.body().getLocation().getId());
+                            getAddressFromCoordinates(lat, lng, address->
+                                    createCategory(locId, name, address));
                         } else {
                             Toast.makeText(MainActivity.this,
-                                    "Location creation failed",
-                                    Toast.LENGTH_SHORT).show();
+                                    "Location creation failed", Toast.LENGTH_SHORT).show();
                         }
                     }
-                    @Override
-                    public void onFailure(@NonNull Call<LocationCreateResponse> call,
-                                          @NonNull Throwable t) {
-                        Timber.e(t, "Failed to create location");
+                    @Override public void onFailure(
+                            @NonNull Call<LocationCreateResponse> call,
+                            @NonNull Throwable t) {
+                        Timber.e(t,"Failed to create location");
                         Toast.makeText(MainActivity.this,
-                                "Network error.", Toast.LENGTH_SHORT).show();
+                                "Network error", Toast.LENGTH_SHORT).show();
                     }
                 });
     }
 
     private void createCategory(int locationId,
-                                String categoryName,
-                                String address) {
-        CategoryRequest req =
-                new CategoryRequest(categoryName, address, 5.0,
-                        locationId, StatusEnum.WAIT);
-
+                                String name, String address) {
+        CategoryRequest req = new CategoryRequest(
+                name, address, 5.0, locationId, StatusEnum.WAIT);
         apiService.createCategory(req)
                 .enqueue(new Callback<CategoryResponse>() {
-                    @Override
-                    public void onResponse(@NonNull Call<CategoryResponse> call,
-                                           @NonNull Response<CategoryResponse> res) {
-                        if (res.isSuccessful() && res.body() != null) {
-                            try {
-                                selectedCategoryId =
-                                        Integer.parseInt(res.body().getId());
-                                launchCamera();
-                            } catch (NumberFormatException e) {
-                                Toast.makeText(MainActivity.this,
-                                        "Error parsing category ID",
-                                        Toast.LENGTH_SHORT).show();
-                            }
+                    @Override public void onResponse(
+                            @NonNull Call<CategoryResponse> call,
+                            @NonNull Response<CategoryResponse> res) {
+                        if (res.isSuccessful() && res.body()!=null) {
+                            selectedCategoryId =
+                                    Integer.parseInt(res.body().getId());
+                            launchCamera();
                         } else {
                             Toast.makeText(MainActivity.this,
-                                    "Category creation failed",
-                                    Toast.LENGTH_SHORT).show();
+                                    "Category creation failed", Toast.LENGTH_SHORT).show();
                         }
                     }
-                    @Override
-                    public void onFailure(@NonNull Call<CategoryResponse> call,
-                                          @NonNull Throwable t) {
-                        Timber.e(t, "Failed to create category");
+                    @Override public void onFailure(
+                            @NonNull Call<CategoryResponse> call,
+                            @NonNull Throwable t) {
+                        Timber.e(t,"Failed to create category");
                         Toast.makeText(MainActivity.this,
-                                "Network error.", Toast.LENGTH_SHORT).show();
+                                "Network error", Toast.LENGTH_SHORT).show();
                     }
                 });
     }
@@ -428,202 +411,113 @@ public class MainActivity extends AppCompatActivity {
             double lat, double lng,
             OnAddressObtainedListener listener) {
         try {
-            List<Address> addresses = new Geocoder(this, Locale.getDefault())
+            List<Address> list = new Geocoder(this, Locale.getDefault())
                     .getFromLocation(lat, lng, 1);
-            if (addresses != null && !addresses.isEmpty()) {
-                listener.onAddressObtained(
-                        addresses.get(0).getAddressLine(0));
+            if (list != null && !list.isEmpty()) {
+                listener.onAddressObtained(list.get(0).getAddressLine(0));
             } else {
                 listener.onAddressObtained("Unknown Address");
             }
-        } catch (IOException e) {
-            Timber.e(e, "Reverse geocoding failed");
+        } catch (IOException ex) {
+            Timber.e(ex,"Reverse geocoding failed");
             listener.onAddressObtained("Unknown Address");
         }
     }
 
     private void launchCamera() {
-        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
-        prefs.edit()
-                .putBoolean("gpsDisabledDuringCamera", false)
-                .putBoolean("gpsStatusOnCameraStart",
-                        locationManager.isProviderEnabled(
-                                LocationManager.GPS_PROVIDER))
-                .apply();
-
-        startActivityForResult(
-                new Intent(this, CameraActivity.class),
-                CAMERA_REQUEST_CODE
-        );
+        Intent i = new Intent(this, CameraActivity.class);
+        i.putExtra("theme_id", selectedCategoryId);
+        startActivityForResult(i, CAMERA_REQ_CODE);
     }
 
-    private void refreshCategories() {
-        loadApprovedCategories(currentLatitude, currentLongitude);
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode,
-                                           @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(
-                requestCode, permissions, grantResults);
-
-        switch (requestCode) {
-            case LOCATION_PERMISSION_REQUEST_CODE:
-                if (grantResults.length > 0
-                        && grantResults[0]
-                        == PackageManager.PERMISSION_GRANTED) {
-                    getLastLocation();
-                } else {
-                    Toast.makeText(this,
-                            "Location permission required.",
-                            Toast.LENGTH_SHORT).show();
-                    finish();
-                }
-                break;
-
-            case CAMERA_PERMISSION_REQUEST_CODE:
-                if (grantResults.length > 0
-                        && grantResults[0]
-                        == PackageManager.PERMISSION_GRANTED) {
-                    checkCategoryAndLaunchCamera();
-                } else {
-                    Toast.makeText(this,
-                            "Camera permission required.",
-                            Toast.LENGTH_SHORT).show();
-                }
-                break;
-
-            case NOTIFICATION_PERMISSION_REQUEST_CODE:
-                if (grantResults.length > 0
-                        && grantResults[0]
-                        == PackageManager.PERMISSION_GRANTED) {
-                    Timber.d("Notification permission granted");
-                } else {
-                    Toast.makeText(this,
-                            "Notification permission required.",
-                            Toast.LENGTH_SHORT).show();
-                }
-                break;
+    @Override public void onRequestPermissionsResult(
+            int requestCode, @NonNull String[] perms, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, perms, grantResults);
+        if (requestCode == LOC_PERM_REQ_CODE) {
+            if (grantResults.length>0
+                    && grantResults[0]==PackageManager.PERMISSION_GRANTED) {
+                getLastLocation();
+            } else {
+                Toast.makeText(this,
+                        "Location permission required", Toast.LENGTH_SHORT).show();
+                finish();
+            }
+        }
+        if (requestCode == CAM_PERM_REQ_CODE) {
+            if (grantResults.length>0
+                    && grantResults[0]==PackageManager.PERMISSION_GRANTED) {
+                checkCategoryAndLaunchCamera();
+            } else {
+                Toast.makeText(this,
+                        "Camera permission required", Toast.LENGTH_SHORT).show();
+            }
         }
     }
 
     private void showLocationErrorDialog() {
         new MaterialAlertDialogBuilder(this)
-                .setTitle("Location Not Available")
-                .setMessage("Could not obtain location. Please try again.")
-                .setPositiveButton("Retry", (d,i) -> getLastLocation())
-                .setNegativeButton("Exit", (d,i) -> finish())
+                .setTitle("Location unavailable")
+                .setMessage("Could not get location – retry?")
+                .setPositiveButton("Retry", (d,w)->getLastLocation())
+                .setNegativeButton("Exit",   (d,w)->finish())
                 .show();
     }
 
     private void showAvatarPopup(View anchor) {
-        View popupView = LayoutInflater.from(this)
+        View popup = LayoutInflater.from(this)
                 .inflate(R.layout.layout_avatar_popup, null);
-        TextView    fullNameView    = popupView.findViewById(R.id.popupFullName);
-        ImageView   profileImage    = popupView.findViewById(R.id.popupProfileImage);
-        SharedPreferences prefs    = getSharedPreferences("AppPrefs", MODE_PRIVATE);
-
-        fullNameView.setText(prefs.getString("userName", "John Doe"));
-        String photoUrl = prefs.getString("userPhotoUrl", "");
-        if (!photoUrl.isEmpty()) {
-            Glide.with(this).load(photoUrl).into(profileImage);
-        }
-
-        new PopupWindow(popupView,
+        TextView name = popup.findViewById(R.id.popupFullName);
+        ImageView pic = popup.findViewById(R.id.popupProfileImage);
+        SharedPreferences prefs =
+                getSharedPreferences("AppPrefs", MODE_PRIVATE);
+        name.setText(prefs.getString("userName","User"));
+        String url = prefs.getString("userPhotoUrl","");
+        if (!url.isEmpty()) Glide.with(this).load(url).into(pic);
+        new PopupWindow(popup,
                 WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                true)
+                WindowManager.LayoutParams.WRAP_CONTENT, true)
                 .showAsDropDown(anchor);
     }
 
     private void loadUserProfile() {
-        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
+        SharedPreferences prefs =
+                getSharedPreferences("AppPrefs", MODE_PRIVATE);
         textAvatar.setText(
-                getAbbreviation(prefs.getString("userName", "John Doe"))
-        );
+                getAbbreviation(prefs.getString("userName","?")));
     }
 
     private String getAbbreviation(String fullName) {
-        if (fullName == null || fullName.isEmpty()) return "?";
-        StringBuilder abbr = new StringBuilder();
-        for (String part : fullName.trim().split("\\s+")) {
-            abbr.append(part.charAt(0));
+        if (fullName==null||fullName.isEmpty()) return "?";
+        StringBuilder ab = new StringBuilder();
+        for (String part: fullName.trim().split("\\s+")) {
+            ab.append(part.charAt(0));
         }
-        return abbr.toString().toUpperCase();
-    }
-
-    private boolean validateToken() {
-        SharedPreferences prefs  = getSharedPreferences("AppPrefs", MODE_PRIVATE);
-        String            token  = prefs.getString("appToken", null);
-        long              expiry = prefs.getLong("appTokenExpiry", 0);
-
-        if (token == null || expiry == 0 || System.currentTimeMillis() > expiry) {
-            prefs.edit().clear().apply();
-            startActivity(new Intent(this, LoginActivity.class));
-            finish();
-            return false;
-        }
-
-        RetrofitClient.getInstance().setAuthToken(token);
-        return true;
+        return ab.toString().toUpperCase();
     }
 
     private void performLogout() {
-        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
+        SharedPreferences prefs =
+                getSharedPreferences("AppPrefs", MODE_PRIVATE);
         prefs.edit().clear().apply();
-
-        GoogleSignInOptions gso = new GoogleSignInOptions.Builder(
-                GoogleSignInOptions.DEFAULT_SIGN_IN)
-                .requestIdToken(getString(R.string.web_client_id))
-                .requestEmail()
-                .build();
-
-        googleSignInClient = GoogleSignIn.getClient(this, gso);
-        googleSignInClient.signOut()
-                .addOnCompleteListener(task -> {
-                    Toast.makeText(this,
-                            "Logged out", Toast.LENGTH_SHORT).show();
-                    startActivity(new Intent(this, LoginActivity.class));
-                    finish();
-                });
+        GoogleSignInClient client =
+                GoogleSignIn.getClient(this,
+                        new com.google.android.gms.auth.api.signin.GoogleSignInOptions
+                                .Builder(com.google.android.gms.auth.api.signin
+                                .GoogleSignInOptions.DEFAULT_SIGN_IN)
+                                .requestEmail().build()
+                );
+        client.signOut().addOnCompleteListener(t->redirectToLogin());
     }
 
-    @Override
-    protected void onActivityResult(int requestCode,
-                                    int resultCode,
-                                    Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == CAMERA_REQUEST_CODE) {
-            handleCameraResult(resultCode, data);
-        }
-    }
-
-    private void handleCameraResult(int resultCode, Intent data) {
-        if (resultCode == RESULT_OK && data != null) {
-            SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
-            boolean gpsStart    = prefs.getBoolean("gpsStatusOnCameraStart", true);
-            boolean gpsDisabled = prefs.getBoolean("gpsDisabledDuringCamera", false);
-            boolean gpsNow      = locationManager.isProviderEnabled(
-                    LocationManager.GPS_PROVIDER);
-
-            if (!gpsStart || gpsDisabled || !gpsNow) {
-                Toast.makeText(this,
-                        "GPS was disabled during photo capture. Upload failed.",
-                        Toast.LENGTH_LONG).show();
-                categoryAutoCompleteTextView.setText("");
-                return;
-            }
-
+    @Override protected void onActivityResult(
+            int req, int res, Intent data) {
+        super.onActivityResult(req,res,data);
+        if (req==CAMERA_REQ_CODE&&res==RESULT_OK&&data!=null){
             String path = data.getStringExtra("image_path");
-            Intent intent = new Intent(this, ApiActivity.class);
-            intent.putExtra("image_path", path);
-            intent.putExtra("category_id", selectedCategoryId);
-            startActivity(intent);
-            refreshCategories();
-        } else {
-            Toast.makeText(this,
-                    "Camera activity failed or cancelled.", Toast.LENGTH_SHORT).show();
+            Intent upl  = new Intent(this, ApiActivity.class);
+            upl.putExtra("image_path",path);
+            upl.putExtra("theme_id",selectedCategoryId);
+            startActivity(upl);
         }
     }
 }

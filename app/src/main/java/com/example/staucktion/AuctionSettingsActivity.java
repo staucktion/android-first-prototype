@@ -19,6 +19,7 @@ import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textview.MaterialTextView;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 
 import okhttp3.ResponseBody;
 import retrofit2.Call;
@@ -36,6 +37,7 @@ public class AuctionSettingsActivity extends AppCompatActivity {
     private int    photoId;
     private String photoUrl;
     private String status;
+    private static final BigDecimal MAX_PRICE = new BigDecimal("1000000.00");  // 1 million
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -134,12 +136,18 @@ public class AuctionSettingsActivity extends AppCompatActivity {
         String priceText   = editPurchaseNowPrice.getText().toString().trim();
 
         // validation
-        if (!auctionable && priceText.isEmpty()) {
-            Toast.makeText(this,
-                    "Please set a price or mark as auctionable.",
-                    Toast.LENGTH_SHORT
-            ).show();
-            return;
+        if (!auctionable) {
+            if (priceText.isEmpty()) {
+                Toast.makeText(this,
+                        "Please set a price or mark as auctionable.",
+                        Toast.LENGTH_SHORT
+                ).show();
+                return;
+            }
+            if (!validatePrice(priceText)) {
+                // validatePrice already shows its own error toast
+                return;
+            }
         }
 
         // Disable UI
@@ -213,4 +221,31 @@ public class AuctionSettingsActivity extends AppCompatActivity {
         setResult(RESULT_OK, result);
         finish();
     }
+
+    private boolean validatePrice(String text) {
+        if (text.isEmpty()) {
+            Toast.makeText(this, "Please enter a price.", Toast.LENGTH_SHORT).show();
+            return false;
+        }
+        try {
+            BigDecimal price = new BigDecimal(text);
+            if (price.scale() > 2) {
+                Toast.makeText(this, "Please enter a valid amount (up to 2 decimals).", Toast.LENGTH_SHORT).show();
+                return false;
+            }
+            if (price.compareTo(BigDecimal.ZERO) <= 0) {
+                Toast.makeText(this, "Price must be greater than zero.", Toast.LENGTH_SHORT).show();
+                return false;
+            }
+            if (price.compareTo(MAX_PRICE) > 0) {
+                Toast.makeText(this, "Price cannot exceed " + MAX_PRICE.toPlainString(), Toast.LENGTH_SHORT).show();
+                return false;
+            }
+            return true;
+        } catch (NumberFormatException e) {
+            Toast.makeText(this, "Invalid price format.", Toast.LENGTH_SHORT).show();
+            return false;
+        }
+    }
+
 }
