@@ -426,7 +426,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void launchCamera() {
         Intent i = new Intent(this, CameraActivity.class);
-        i.putExtra("category_id", selectedCategoryId);
+        i.putExtra("theme_id", selectedCategoryId);
         startActivityForResult(i, CAMERA_REQ_CODE);
     }
 
@@ -516,7 +516,7 @@ public class MainActivity extends AppCompatActivity {
             String path = data.getStringExtra("image_path");
             Intent upl  = new Intent(this, ApiActivity.class);
             upl.putExtra("image_path",path);
-            upl.putExtra("category_id",selectedCategoryId);
+            upl.putExtra("theme_id",selectedCategoryId);
             startActivity(upl);
         }
     }
