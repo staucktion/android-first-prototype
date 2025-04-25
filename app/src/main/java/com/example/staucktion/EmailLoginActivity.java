@@ -2,6 +2,7 @@ package com.example.staucktion;
 
 import android.annotation.SuppressLint;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Base64;
 import android.util.Log;
@@ -14,6 +15,7 @@ import com.example.staucktion.api.ApiService;
 import com.example.staucktion.api.RetrofitClient;
 import com.example.staucktion.models.AuthResponse;
 import com.example.staucktion.models.EmailAuthRequest;
+import com.example.staucktion.models.UserInfoResponse;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 
@@ -84,30 +86,56 @@ public class EmailLoginActivity extends AppCompatActivity {
     }
 
     private void onAuthSuccess(String jwt) {
+        // 1) Decode & store expiry (same as you have now)
         long expiryMillis = extractExpiryFromJwt(jwt);
         if (expiryMillis <= 0) {
-            // fallback: 24 h
-            expiryMillis = System.currentTimeMillis() + 24 * 60 * 60 * 1000L;
-            Log.w(TAG, "JWT had no exp claim, using 24h fallback");
+            expiryMillis = System.currentTimeMillis() + 24 * 60 * 60 * 1000L;  // fallback 24h
         }
-
-        Log.d(TAG, "storing expiry=" + expiryMillis + "  now=" + System.currentTimeMillis());
-        getSharedPreferences("AppPrefs", MODE_PRIVATE).edit()
+        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
+        prefs.edit()
                 .putString("appToken", jwt)
                 .putLong("appTokenExpiry", expiryMillis)
                 .apply();
 
-        // tell Retrofit to use it
+        // 2) Tell Retrofit to use this token
         RetrofitClient.getInstance().setAuthToken(jwt);
 
-        Toast.makeText(this,
-                "Login successful!",
-                Toast.LENGTH_SHORT).show();
+        // 3) Now fetch the user’s profile
+        ApiService svc = RetrofitClient.getInstance().create(ApiService.class);
+        svc.getUserInfo().enqueue(new Callback<UserInfoResponse>() {
+            @Override
+            public void onResponse(Call<UserInfoResponse> call,
+                                   Response<UserInfoResponse> res) {
+                if (res.isSuccessful() && res.body()!=null
+                        && res.body().getUser()!=null) {
+                    // Extract name & photo URL
+                    String first = res.body().getUser().getFirstName();
+                    String last  = res.body().getUser().getLastName();
+                    String fullName = first + " " + last;
+                    String photoUrl = res.body().getUser().getPhotoUrl();
 
-        Intent intent = new Intent(this, MainActivity.class)
-                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
-        startActivity(intent);
-        finish();
+                    // Save them
+                    prefs.edit()
+                            .putString("userName", fullName)
+                            .putString("userPhotoUrl", photoUrl != null ? photoUrl : "")
+                            .apply();
+                }
+                // 4) Finally navigate to the main screen, clearing the back-stack
+                Intent intent = new Intent(EmailLoginActivity.this, MainActivity.class)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(intent);
+                finish();
+            }
+
+            @Override
+            public void onFailure(Call<UserInfoResponse> call, Throwable t) {
+                // Even if profile fetch fails, still go on:
+                Intent intent = new Intent(EmailLoginActivity.this, MainActivity.class)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                startActivity(intent);
+                finish();
+            }
+        });
     }
 
     /**
