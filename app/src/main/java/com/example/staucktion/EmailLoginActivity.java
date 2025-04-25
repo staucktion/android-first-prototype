@@ -2,8 +2,8 @@ package com.example.staucktion;
 
 import android.annotation.SuppressLint;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.util.Base64;
 import android.util.Log;
 import android.util.Patterns;
 import android.widget.Toast;
@@ -16,7 +16,8 @@ import com.example.staucktion.models.AuthResponse;
 import com.example.staucktion.models.EmailAuthRequest;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
-import com.google.android.material.textview.MaterialTextView;
+
+import org.json.JSONObject;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -24,10 +25,8 @@ import retrofit2.Response;
 
 public class EmailLoginActivity extends AppCompatActivity {
     private static final String TAG = "EmailLogin";
-
     private TextInputEditText inputEmail, inputPassword;
-    private MaterialButton    btnLogInEmail;
-    private MaterialTextView  tvPromptRegister;
+    private MaterialButton     btnLogInEmail;
 
     @SuppressLint("MissingInflatedId")
     @Override
@@ -38,7 +37,6 @@ public class EmailLoginActivity extends AppCompatActivity {
         inputEmail    = findViewById(R.id.inputEmail);
         inputPassword = findViewById(R.id.inputPassword);
         btnLogInEmail = findViewById(R.id.btnLogInEmail);
-        tvPromptRegister = findViewById(R.id.tvPrompt);
 
         ApiService svc = RetrofitClient.getInstance().create(ApiService.class);
 
@@ -47,39 +45,29 @@ public class EmailLoginActivity extends AppCompatActivity {
             String pass  = inputPassword.getText().toString();
             if (!isValid(email, pass)) return;
 
-            Log.d(TAG, "Attempting login for " + email);
             svc.loginWithEmail(new EmailAuthRequest(email, pass))
                     .enqueue(new Callback<AuthResponse>() {
                         @Override
                         public void onResponse(Call<AuthResponse> call,
                                                Response<AuthResponse> res) {
-                            Log.d(TAG, "onResponse: code=" + res.code());
+                            Log.d(TAG, "login response code=" + res.code());
                             if (!res.isSuccessful() || res.body() == null) {
-                                Log.d(TAG, "login failed or empty body");
                                 Toast.makeText(EmailLoginActivity.this,
                                         "Login failed: " + res.code(),
                                         Toast.LENGTH_SHORT).show();
                                 return;
                             }
                             String jwt = res.body().getToken();
-                            long expiresIn = res.body().getExpiresInMillis();
-                            Log.d(TAG, "login successful, token=" + jwt);
-                            onAuthSuccess(jwt, expiresIn);
+                            onAuthSuccess(jwt);
                         }
-
                         @Override
                         public void onFailure(Call<AuthResponse> call, Throwable t) {
-                            Log.e(TAG, "network error during login", t);
+                            Log.e(TAG, "network error", t);
                             Toast.makeText(EmailLoginActivity.this,
                                     "Network error: " + t.getMessage(),
                                     Toast.LENGTH_SHORT).show();
                         }
                     });
-        });
-
-        tvPromptRegister.setOnClickListener(v -> {
-            // Launch your registration screen
-            startActivity(new Intent(this, RegisterActivity.class));
         });
     }
 
@@ -95,28 +83,49 @@ public class EmailLoginActivity extends AppCompatActivity {
         return true;
     }
 
-    private void onAuthSuccess(String jwt, long expiresIn) {
-        // 1) Persist token & expiry (expiresIn is in millis or seconds? adjust *1000L if seconds)
-        long expiry = System.currentTimeMillis() + expiresIn * 1000L;
-        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
-        prefs.edit()
+    private void onAuthSuccess(String jwt) {
+        long expiryMillis = extractExpiryFromJwt(jwt);
+        if (expiryMillis <= 0) {
+            // fallback: 24 h
+            expiryMillis = System.currentTimeMillis() + 24 * 60 * 60 * 1000L;
+            Log.w(TAG, "JWT had no exp claim, using 24h fallback");
+        }
+
+        Log.d(TAG, "storing expiry=" + expiryMillis + "  now=" + System.currentTimeMillis());
+        getSharedPreferences("AppPrefs", MODE_PRIVATE).edit()
                 .putString("appToken", jwt)
-                .putLong("appTokenExpiry", expiry)
+                .putLong("appTokenExpiry", expiryMillis)
                 .apply();
 
-        // 2) Tell Retrofit to use it
+        // tell Retrofit to use it
         RetrofitClient.getInstance().setAuthToken(jwt);
 
-        // 3) Toast & navigate to MainActivity, clearing the back-stack
         Toast.makeText(this,
                 "Login successful!",
                 Toast.LENGTH_SHORT).show();
 
         Intent intent = new Intent(this, MainActivity.class)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(intent);
         finish();
+    }
 
-        Log.d(TAG, "Stored expiry=" + expiry + " now=" + System.currentTimeMillis());
+    /**
+     * JWT payload is Base64-URL; decode, parse JSON, read "exp" (seconds) → ms
+     */
+    private long extractExpiryFromJwt(String jwt) {
+        try {
+            String[] parts = jwt.split("\\.");
+            if (parts.length != 3) return -1;
+            byte[] decoded = Base64.decode(parts[1], Base64.URL_SAFE|Base64.NO_PADDING|Base64.NO_WRAP);
+            String payload = new String(decoded, "UTF-8");
+            JSONObject obj = new JSONObject(payload);
+            if (!obj.has("exp")) return -1;
+            long expSeconds = obj.getLong("exp");
+            return expSeconds * 1000L;
+        } catch (Exception e) {
+            Log.e(TAG, "failed to parse JWT exp", e);
+            return -1;
+        }
     }
 }

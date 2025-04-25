@@ -15,6 +15,7 @@ import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.WindowManager;
@@ -102,6 +103,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     };
+    private static final String TAG = "MainActivity";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -115,7 +117,15 @@ public class MainActivity extends AppCompatActivity {
         SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
         String token = prefs.getString("appToken", null);
         long   expiry = prefs.getLong("appTokenExpiry", 0);
-        if (token == null || System.currentTimeMillis() > expiry) {
+        long now    = System.currentTimeMillis();
+
+        Log.d(TAG, "onCreate: token=" + token +
+                "  expiry=" + expiry +
+                "  now="    + now +
+                "  expired?=" + (now > expiry));
+        if (token == null || now > expiry) {
+            Log.d(TAG, "→ token invalid or expired, redirecting to login");
+
             // no valid token → go to login
             prefs.edit().clear().apply();
             redirectToLogin();
