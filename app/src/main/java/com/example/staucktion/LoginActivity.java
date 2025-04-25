@@ -30,6 +30,7 @@ import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.tasks.Task;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.textview.MaterialTextView;
 import com.onesignal.OneSignal;
 import com.onesignal.OneSignal.ExternalIdError;
 import com.onesignal.OneSignal.OSExternalUserIdUpdateCompletionHandler;
@@ -46,6 +47,7 @@ import timber.log.Timber;
 public class LoginActivity extends AppCompatActivity {
     private static final int RC_SIGN_IN = 1001;
     private GoogleSignInClient googleSignInClient;
+    private MaterialTextView tvPromptRegister;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,6 +87,11 @@ public class LoginActivity extends AppCompatActivity {
                 startActivity(new Intent(this, EmailLoginActivity.class))
         );
 
+        tvPromptRegister = findViewById(R.id.tvPrompt);
+        tvPromptRegister.setOnClickListener(v -> {
+            // Launch your registration screen
+            startActivity(new Intent(this, RegisterActivity.class));
+        });
     }
 
     @SuppressLint("LogNotTimber")

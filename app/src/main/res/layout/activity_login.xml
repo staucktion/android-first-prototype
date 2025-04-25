@@ -62,4 +62,18 @@
         app:cornerRadius="8dp"
         app:strokeColor="@color/black"
         app:strokeWidth="2dp" />
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/tvPrompt"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/btnViaEmail"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="16dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:minHeight="48dp"
+        android:padding="8dp"
+        android:text="Don’t have an account? Register here!"
+        android:textColor="@color/prompt_text_color"
+        android:textSize="14sp" />
 </RelativeLayout>

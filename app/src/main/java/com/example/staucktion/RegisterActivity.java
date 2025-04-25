@@ -78,8 +78,8 @@ public class RegisterActivity extends AppCompatActivity {
                         }
                     });
         });
-        @SuppressLint({"MissingInflatedId", "LocalSuppress"}) MaterialTextView tvPromptLogIn = findViewById(R.id.tvPromptLogIn);
-        tvPromptLogIn.setOnClickListener(v -> {
+        @SuppressLint({"MissingInflatedId", "LocalSuppress"}) MaterialTextView tvPrompt = findViewById(R.id.tvPrompt);
+        tvPrompt.setOnClickListener(v -> {
             // if you have a dedicated RegisterActivity:
             startActivity(new Intent(RegisterActivity.this, EmailLoginActivity.class));
         });
