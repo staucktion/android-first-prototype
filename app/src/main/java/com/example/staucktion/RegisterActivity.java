@@ -1,6 +1,5 @@
 package com.example.staucktion;
 
-import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
@@ -21,67 +20,128 @@ import retrofit2.Callback;
 import retrofit2.Response;
 
 public class RegisterActivity extends AppCompatActivity {
-    private TextInputEditText firstName, lastName, email, password;
+    private TextInputEditText firstName;
+    private TextInputEditText lastName;
+    private TextInputEditText email;
+    private TextInputEditText password;
+    private TextInputEditText confirmPassword;
     private MaterialButton btnSubmit;
 
-    @Override protected void onCreate(Bundle savedInstanceState) {
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_register);
 
-        firstName  = findViewById(R.id.inputFirstName);
-        lastName   = findViewById(R.id.inputLastName);
-        email      = findViewById(R.id.inputEmail);
-        password   = findViewById(R.id.inputPassword);
-        btnSubmit  = findViewById(R.id.btnRegister);
+        firstName       = findViewById(R.id.inputFirstName);
+        lastName        = findViewById(R.id.inputLastName);
+        email           = findViewById(R.id.inputEmail);
+        password        = findViewById(R.id.inputPassword);
+        confirmPassword = findViewById(R.id.confirmPassword);
+        btnSubmit       = findViewById(R.id.btnRegister);
 
-        btnSubmit.setOnClickListener(v -> {
-            String fn = firstName.getText().toString().trim();
-            String ln = lastName.getText().toString().trim();
-            String em = email.getText().toString().trim();
-            String pw = password.getText().toString().trim();
+        btnSubmit.setOnClickListener(v -> attemptRegister());
 
-            if (fn.isEmpty() || ln.isEmpty() || em.isEmpty() || pw.isEmpty()) {
-                Toast.makeText(this, "All fields are required.", Toast.LENGTH_SHORT).show();
-                return;
-            }
+        // “Already have an account? Log in here!”
+        MaterialTextView tvPrompt = findViewById(R.id.tvPrompt);
+        tvPrompt.setOnClickListener(v ->
+                startActivity(new Intent(RegisterActivity.this, EmailLoginActivity.class))
+        );
+    }
 
-            RegisterRequest req = new RegisterRequest(em, pw, fn, ln);
-            RetrofitClient.getInstance()
-                    .create(ApiService.class)
-                    .registerWithEmail(req)
-                    .enqueue(new Callback<AuthResponse>() {
-                        @Override public void onResponse(Call<AuthResponse> c, Response<AuthResponse> r) {
-                            if (!r.isSuccessful() || r.body()==null) {
-                                Toast.makeText(RegisterActivity.this,
-                                        "Register failed: HTTP "+r.code(), Toast.LENGTH_SHORT).show();
-                                return;
-                            }
-                            // same token/storage flow as in LoginActivity:
-                            String jwt = r.body().getToken();
-                            long   ttl = r.body().getExpiresInMillis();
-                            long   exp = System.currentTimeMillis() + (ttl>0?ttl:86_400_000);
+    private void attemptRegister() {
+        // 1) Clear previous errors
+        firstName.setError(null);
+        lastName.setError(null);
+        email.setError(null);
+        password.setError(null);
+        confirmPassword.setError(null);
 
-                            SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
-                            prefs.edit()
-                                    .putString("appToken", jwt)
-                                    .putLong("appTokenExpiry", exp)
-                                    .putString("userName", fn + " " + ln)
-                                    .apply();
+        // 2) Read input
+        String fn = firstName.getText().toString().trim();
+        String ln = lastName.getText().toString().trim();
+        String em = email.getText().toString().trim();
+        String pw = password.getText().toString();
+        String cw = confirmPassword.getText().toString();
 
-                            RetrofitClient.getInstance().setAuthToken(jwt);
-                            setResult(RESULT_OK);
-                            finish();
-                        }
-                        @Override public void onFailure(Call<AuthResponse> c, Throwable t) {
+        boolean cancel = false;
+
+        // 3) Validate non-empty
+        if (fn.isEmpty()) {
+            firstName.setError("Required");
+            cancel = true;
+        }
+        if (ln.isEmpty()) {
+            lastName.setError("Required");
+            cancel = true;
+        }
+        if (em.isEmpty()) {
+            email.setError("Required");
+            cancel = true;
+        }
+        if (pw.isEmpty()) {
+            password.setError("Required");
+            cancel = true;
+        }
+        if (cw.isEmpty()) {
+            confirmPassword.setError("Required");
+            cancel = true;
+        }
+
+        // 4) Validate passwords match
+        if (!pw.isEmpty() && !cw.isEmpty() && !pw.equals(cw)) {
+            confirmPassword.setError("Passwords do not match");
+            cancel = true;
+        }
+
+        if (cancel) {
+            // there were validation errors
+            return;
+        }
+
+        // 5) All good → call register API
+        RegisterRequest req = new RegisterRequest(em, pw, fn, ln);
+        RetrofitClient
+                .getInstance()
+                .create(ApiService.class)
+                .registerWithEmail(req)
+                .enqueue(new Callback<AuthResponse>() {
+                    @Override
+                    public void onResponse(Call<AuthResponse> call,
+                                           Response<AuthResponse> res) {
+                        if (!res.isSuccessful() || res.body() == null) {
                             Toast.makeText(RegisterActivity.this,
-                                    "Network error: "+t.getMessage(), Toast.LENGTH_SHORT).show();
+                                    "Registration failed: " + res.code(),
+                                    Toast.LENGTH_SHORT).show();
+                            return;
                         }
-                    });
-        });
-        @SuppressLint({"MissingInflatedId", "LocalSuppress"}) MaterialTextView tvPrompt = findViewById(R.id.tvPrompt);
-        tvPrompt.setOnClickListener(v -> {
-            // if you have a dedicated RegisterActivity:
-            startActivity(new Intent(RegisterActivity.this, EmailLoginActivity.class));
-        });
+                        // Persist token exactly as in login:
+                        String jwt = res.body().getToken();
+                        long ttl   = res.body().getExpiresInMillis() > 0
+                                ? res.body().getExpiresInMillis()
+                                : 86_400_000L;
+                        long exp   = System.currentTimeMillis() + ttl;
+
+                        SharedPreferences prefs =
+                                getSharedPreferences("AppPrefs", MODE_PRIVATE);
+                        prefs.edit()
+                                .putString("appToken", jwt)
+                                .putLong("appTokenExpiry", exp)
+                                .putString("userName", fn + " " + ln)
+                                .apply();
+
+                        RetrofitClient.getInstance().setAuthToken(jwt);
+
+                        // Return to login (or straight into main, up to you):
+                        setResult(RESULT_OK);
+                        finish();
+                    }
+
+                    @Override
+                    public void onFailure(Call<AuthResponse> call, Throwable t) {
+                        Toast.makeText(RegisterActivity.this,
+                                "Network error: " + t.getMessage(),
+                                Toast.LENGTH_LONG).show();
+                    }
+                });
     }
 }
