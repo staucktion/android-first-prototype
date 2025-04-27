@@ -9,6 +9,7 @@ import android.util.Log;
 import android.util.Patterns;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.staucktion.api.ApiService;
@@ -18,12 +19,15 @@ import com.example.staucktion.models.EmailAuthRequest;
 import com.example.staucktion.models.UserInfoResponse;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textview.MaterialTextView;
+import com.onesignal.OneSignal;
 
 import org.json.JSONObject;
 
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
+import timber.log.Timber;
 
 public class EmailLoginActivity extends AppCompatActivity {
     private static final String TAG = "EmailLogin";
@@ -71,6 +75,10 @@ public class EmailLoginActivity extends AppCompatActivity {
                         }
                     });
         });
+        MaterialTextView tvPrompt = findViewById(R.id.tvPrompt);
+        tvPrompt.setOnClickListener(v ->
+                startActivity(new Intent(EmailLoginActivity.this, RegisterActivity.class))
+        );
     }
 
     private boolean isValid(String email, String pass) {
@@ -108,19 +116,37 @@ public class EmailLoginActivity extends AppCompatActivity {
                                    Response<UserInfoResponse> res) {
                 if (res.isSuccessful() && res.body()!=null
                         && res.body().getUser()!=null) {
-                    // Extract name & photo URL
-                    String first = res.body().getUser().getFirstName();
-                    String last  = res.body().getUser().getLastName();
-                    String fullName = first + " " + last;
-                    String photoUrl = res.body().getUser().getPhotoUrl();
 
-                    // Save them
+                    // 1) Extract the profile fields
+                    int   userId   = res.body().getUser().getUserId();
+                    String first   = res.body().getUser().getFirstName();
+                    String last    = res.body().getUser().getLastName();
+                    String fullName= first + " " + last;
+                    String photoUrl= res.body().getUser().getPhotoUrl();
+
+                    // 2) Save to prefs
                     prefs.edit()
                             .putString("userName", fullName)
                             .putString("userPhotoUrl", photoUrl != null ? photoUrl : "")
                             .apply();
+
+                    // 3) Tell OneSignal who we are
+                    OneSignal.setExternalUserId(
+                            String.valueOf(userId),
+                            new OneSignal.OSExternalUserIdUpdateCompletionHandler() {
+                                @Override
+                                public void onSuccess(JSONObject results) {
+                                    Timber.d("OneSignal external ID set (email): %s", results);
+                                }
+                                @Override
+                                public void onFailure(@NonNull OneSignal.ExternalIdError error) {
+                                    Timber.e("OneSignal external ID error (email): %s", error);
+                                }
+                            }
+                    );
                 }
-                // 4) Finally navigate to the main screen, clearing the back-stack
+
+                // 4) Finally launch MainActivity
                 Intent intent = new Intent(EmailLoginActivity.this, MainActivity.class)
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK);
                 startActivity(intent);
@@ -129,7 +155,7 @@ public class EmailLoginActivity extends AppCompatActivity {
 
             @Override
             public void onFailure(Call<UserInfoResponse> call, Throwable t) {
-                // Even if profile fetch fails, still go on:
+                // Even on failure, still proceed:
                 Intent intent = new Intent(EmailLoginActivity.this, MainActivity.class)
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK);
                 startActivity(intent);

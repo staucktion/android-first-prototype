@@ -138,8 +138,11 @@ public class RegisterActivity extends AppCompatActivity {
 
                         RetrofitClient.getInstance().setAuthToken(jwt);
 
-                        // Done — return to login (or go straight into main):
-                        setResult(RESULT_OK);
+                        // → Instead of setResult/finish, launch EmailLoginActivity:
+                        Intent i = new Intent(RegisterActivity.this, EmailLoginActivity.class)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
+                                        Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                        startActivity(i);
                         finish();
                     }
                     @Override public void onFailure(Call<AuthResponse> call, Throwable t) {
