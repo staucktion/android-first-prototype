@@ -25,6 +25,7 @@ public class RegisterActivity extends AppCompatActivity {
     private TextInputEditText firstName;
     private TextInputEditText lastName;
     private TextInputEditText email;
+    private TextInputEditText confirmEmail;
     private TextInputEditText password;
     private TextInputEditText confirmPassword;
     private MaterialButton    btnSubmit;
@@ -37,6 +38,7 @@ public class RegisterActivity extends AppCompatActivity {
         firstName       = findViewById(R.id.inputFirstName);
         lastName        = findViewById(R.id.inputLastName);
         email           = findViewById(R.id.inputEmail);
+        confirmEmail    = findViewById(R.id.confirmEmail);
         password        = findViewById(R.id.inputPassword);
         confirmPassword = findViewById(R.id.confirmPassword);
         btnSubmit       = findViewById(R.id.btnRegister);
@@ -55,6 +57,7 @@ public class RegisterActivity extends AppCompatActivity {
         firstName.setError(null);
         lastName.setError(null);
         email.setError(null);
+        confirmEmail   .setError(null);
         password.setError(null);
         confirmPassword.setError(null);
 
@@ -62,6 +65,7 @@ public class RegisterActivity extends AppCompatActivity {
         String fn = firstName.getText().toString().trim();
         String ln = lastName.getText().toString().trim();
         String em = email.getText().toString().trim();
+        String cem= confirmEmail.getText().toString().trim();
         String pw = password.getText().toString();
         String cw = confirmPassword.getText().toString();
 
@@ -80,12 +84,19 @@ public class RegisterActivity extends AppCompatActivity {
             email.setError("Required");
             cancel = true;
         }
+        if (cem.isEmpty())   { confirmEmail.setError("Required"); cancel = true; }
         if (pw.isEmpty()) {
             password.setError("Required");
             cancel = true;
         }
         if (cw.isEmpty()) {
             confirmPassword.setError("Required");
+            cancel = true;
+        }
+
+        // 4) email match
+        if (!em.isEmpty() && !cem.isEmpty() && !em.equals(cem)) {
+            confirmEmail.setError("Emails do not match");
             cancel = true;
         }
 
@@ -154,7 +165,6 @@ public class RegisterActivity extends AppCompatActivity {
 
                         RetrofitClient.getInstance().setAuthToken(jwt);
 
-                        // → Instead of setResult/finish, launch EmailLoginActivity:
                         Intent i = new Intent(RegisterActivity.this, EmailLoginActivity.class)
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
                                         Intent.FLAG_ACTIVITY_CLEAR_TASK);
