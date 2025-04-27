@@ -15,6 +15,8 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textview.MaterialTextView;
 
+import org.json.JSONObject;
+
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -111,14 +113,28 @@ public class RegisterActivity extends AppCompatActivity {
                 .create(ApiService.class)
                 .registerWithEmail(req)
                 .enqueue(new Callback<AuthResponse>() {
-                    @Override public void onResponse(
-                            Call<AuthResponse> call,
-                            Response<AuthResponse> res
-                    ) {
-                        if (!res.isSuccessful() || res.body() == null) {
+                    @Override public void onResponse(Call<AuthResponse> call,
+                                                     Response<AuthResponse> res) {
+                        if (!res.isSuccessful()) {
+                            String errMsg = "Registration failed: HTTP " + res.code();
+                            if (res.errorBody() != null) {
+                                try {
+                                    String body = res.errorBody().string();
+                                    JSONObject obj = new JSONObject(body);
+                                    if (obj.has("message")) {
+                                        errMsg = obj.getString("message");
+                                    }
+                                } catch (Exception e) {
+                                    // ignore parsing errors, keep generic
+                                }
+                            }
+                            Toast.makeText(RegisterActivity.this, errMsg, Toast.LENGTH_LONG).show();
+                            return;
+                        }
+                        AuthResponse auth = res.body();
+                        if (auth == null) {
                             Toast.makeText(RegisterActivity.this,
-                                    "Registration failed: HTTP " + res.code(),
-                                    Toast.LENGTH_SHORT).show();
+                                    "Registration failed: empty response", Toast.LENGTH_LONG).show();
                             return;
                         }
                         // Persist token exactly as in login:
