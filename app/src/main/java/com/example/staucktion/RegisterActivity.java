@@ -25,7 +25,7 @@ public class RegisterActivity extends AppCompatActivity {
     private TextInputEditText email;
     private TextInputEditText password;
     private TextInputEditText confirmPassword;
-    private MaterialButton btnSubmit;
+    private MaterialButton    btnSubmit;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -87,7 +87,13 @@ public class RegisterActivity extends AppCompatActivity {
             cancel = true;
         }
 
-        // 4) Validate passwords match
+        // 4) Password length
+        if (!pw.isEmpty() && pw.length() < 8) {
+            password.setError("Password must be at least 8 characters long");
+            cancel = true;
+        }
+
+        // 5) Passwords match
         if (!pw.isEmpty() && !cw.isEmpty() && !pw.equals(cw)) {
             confirmPassword.setError("Passwords do not match");
             cancel = true;
@@ -98,19 +104,20 @@ public class RegisterActivity extends AppCompatActivity {
             return;
         }
 
-        // 5) All good → call register API
+        // 6) All good → call register API
         RegisterRequest req = new RegisterRequest(em, pw, fn, ln);
         RetrofitClient
                 .getInstance()
                 .create(ApiService.class)
                 .registerWithEmail(req)
                 .enqueue(new Callback<AuthResponse>() {
-                    @Override
-                    public void onResponse(Call<AuthResponse> call,
-                                           Response<AuthResponse> res) {
+                    @Override public void onResponse(
+                            Call<AuthResponse> call,
+                            Response<AuthResponse> res
+                    ) {
                         if (!res.isSuccessful() || res.body() == null) {
                             Toast.makeText(RegisterActivity.this,
-                                    "Registration failed: " + res.code(),
+                                    "Registration failed: HTTP " + res.code(),
                                     Toast.LENGTH_SHORT).show();
                             return;
                         }
@@ -131,13 +138,11 @@ public class RegisterActivity extends AppCompatActivity {
 
                         RetrofitClient.getInstance().setAuthToken(jwt);
 
-                        // Return to login (or straight into main, up to you):
+                        // Done — return to login (or go straight into main):
                         setResult(RESULT_OK);
                         finish();
                     }
-
-                    @Override
-                    public void onFailure(Call<AuthResponse> call, Throwable t) {
+                    @Override public void onFailure(Call<AuthResponse> call, Throwable t) {
                         Toast.makeText(RegisterActivity.this,
                                 "Network error: " + t.getMessage(),
                                 Toast.LENGTH_LONG).show();
