@@ -2,15 +2,13 @@ package com.example.staucktion;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.LocationManager;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Looper;
 import android.view.LayoutInflater;
@@ -37,6 +35,7 @@ import com.example.staucktion.managers.LocationApiManager;
 import com.example.staucktion.models.CategoryRequest;
 import com.example.staucktion.models.CategoryResponse;
 import com.example.staucktion.models.LocationCreateResponse;
+import com.google.android.datatransport.BuildConfig;
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInClient;
 import com.google.android.gms.location.FusedLocationProviderClient;
@@ -58,35 +57,27 @@ import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 import timber.log.Timber;
+
 class StatusEnum { public static final int WAIT = 2; }
-
 public class MainActivity extends AppCompatActivity {
-    private static final int REQ_LOCATION           = 101;
-    private static final int REQ_CAMERA_STARTUP     = 102;
-    private static final int REQ_CAMERA_ON_OPEN     = 103;
-    private static final int CAMERA_REQ_CODE        = 104;
+    private static final int REQ_LOCATION       = 101;
+    private static final int REQ_CAMERA_PRIME   = 102;
+    private static final int REQ_CAMERA_ON_OPEN = 103;
+    private static final int REQ_CAMERA_CODE    = 200;
 
-    private ApiService                     apiService;
-    private LocationManager                locationManager;
-    private FusedLocationProviderClient    fusedLocationClient;
-    private LocationApiManager             locationApiManager;
+    private ApiService                      apiService;
+    private LocationManager                 locationManager;
+    private FusedLocationProviderClient     fusedLocationClient;
+    private LocationApiManager              locationApiManager;
 
-    private AutoCompleteTextView           categorySpinner;
-    private MaterialTextView               noCategoryWarning;
-    private MaterialButton                 createCategoryBtn;
-    private TextView                       textAvatar;
+    private AutoCompleteTextView            categorySpinner;
+    private MaterialTextView                noCategoryWarning;
+    private MaterialButton                  createCategoryBtn;
+    private TextView                        textAvatar;
 
-    private double                         currentLatitude, currentLongitude;
-    private int                            selectedCategoryId = -1;
-    private List<CategoryResponse>         loadedCategories;
-
-    private final BroadcastReceiver gpsToggleReceiver = new BroadcastReceiver() {
-        @Override public void onReceive(Context ctx, Intent intent) {
-            if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                sendBroadcast(new Intent("com.example.staucktion.KILL_CAMERA_ACTIVITY"));
-            }
-        }
-    };
+    private double                          currentLatitude, currentLongitude;
+    private int                             selectedCategoryId = -1;
+    private List<CategoryResponse>          loadedCategories   = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -94,19 +85,16 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         Timber.plant(new Timber.DebugTree());
 
-        apiService           = RetrofitClient.getInstance().create(ApiService.class);
-        locationManager      = (LocationManager) getSystemService(LOCATION_SERVICE);
-        fusedLocationClient  = LocationServices.getFusedLocationProviderClient(this);
-        locationApiManager   = new LocationApiManager();
+        apiService          = RetrofitClient.getInstance().create(ApiService.class);
+        locationManager     = (LocationManager)getSystemService(LOCATION_SERVICE);
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+        locationApiManager  = new LocationApiManager();
 
         setupToolbar();
         bindViews();
-        registerReceiver(gpsToggleReceiver,
-                new IntentFilter(LocationManager.PROVIDERS_CHANGED_ACTION));
 
         // 1) Request LOCATION
-        if (ContextCompat.checkSelfPermission(this,
-                Manifest.permission.ACCESS_FINE_LOCATION)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this,
                     new String[]{
@@ -134,42 +122,53 @@ public class MainActivity extends AppCompatActivity {
         createCategoryBtn = findViewById(R.id.createCategoryButton);
         Button openCameraBtn = findViewById(R.id.openCamerabtn);
 
+        // ——— CREATE THEME BUTTON ———
         createCategoryBtn.setOnClickListener(v -> {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-                    != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this,
-                        new String[]{ Manifest.permission.CAMERA },
-                        REQ_CAMERA_STARTUP);
+            resolveSelectedCategoryId();
+
+            // no existing theme → check camera permission first
+            if (selectedCategoryId < 0) {
+                if (hasCameraPermission()) {
+                    promptForCategoryNameAndCreateCategory();
+                } else {
+                    showCameraPermissionDialog();
+                }
             } else {
-                promptForCategoryNameAndCreateCategory();
+                Toast.makeText(this,
+                        "A theme is already selected. Clear it first if you want to create a new one.",
+                        Toast.LENGTH_LONG).show();
             }
         });
 
+        // ——— OPEN CAMERA BUTTON ———
         openCameraBtn.setOnClickListener(v -> {
+            resolveSelectedCategoryId();
+
             if (selectedCategoryId < 0) {
-                Toast.makeText(this, "Select or create a category first.",
+                Toast.makeText(this,
+                        "Please select or create a theme first.",
                         Toast.LENGTH_LONG).show();
                 return;
             }
             if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                Toast.makeText(this, "Enable GPS to take photos.",
+                Toast.makeText(this,
+                        "GPS must be enabled to take photos.",
                         Toast.LENGTH_LONG).show();
                 return;
             }
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-                    != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this,
-                        new String[]{ Manifest.permission.CAMERA },
-                        REQ_CAMERA_ON_OPEN);
-            } else {
+
+            if (hasCameraPermission()) {
                 launchCamera();
+            } else {
+                // Only here do we ask for the CAMERA permission
+                showCameraPermissionDialog();
             }
         });
     }
 
+    /** After LOCATION granted, start location updates and prime the camera request */
     @SuppressLint("MissingPermission")
     private void onLocationPermissionGranted() {
-        // start location → then immediately request CAMERA
         LocationRequest req = LocationRequest.create()
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
                 .setInterval(5_000)
@@ -188,41 +187,43 @@ public class MainActivity extends AppCompatActivity {
             }
         }, Looper.getMainLooper());
 
-        // now ask CAMERA once
+        // prime Android’s camera permission dialog once at startup:
         ActivityCompat.requestPermissions(this,
-                new String[]{ Manifest.permission.CAMERA },
-                REQ_CAMERA_STARTUP);
+                new String[]{Manifest.permission.CAMERA},
+                REQ_CAMERA_PRIME);
     }
 
     private void loadApprovedCategories() {
         apiService.getApprovedCategoriesByCoordinates(
-                currentLatitude, currentLongitude, "APPROVE"
-        ).enqueue(new Callback<List<CategoryResponse>>() {
-            @Override public void onResponse(Call<List<CategoryResponse>> call,
-                                             Response<List<CategoryResponse>> res) {
-                if (res.isSuccessful() && res.body()!=null) {
-                    loadedCategories = res.body();
-                    List<String> names = new ArrayList<>();
-                    for (CategoryResponse c : loadedCategories) {
-                        names.add(c.getName());
+                        currentLatitude, currentLongitude, "APPROVE")
+                .enqueue(new Callback<List<CategoryResponse>>() {
+                    @Override public void onResponse(
+                            Call<List<CategoryResponse>> call,
+                            Response<List<CategoryResponse>> resp) {
+                        if (resp.isSuccessful() && resp.body()!=null) {
+                            loadedCategories = resp.body();
+                            List<String> names = new ArrayList<>();
+                            for (CategoryResponse c : loadedCategories) {
+                                names.add(c.getName());
+                            }
+                            categorySpinner.setAdapter(
+                                    new ArrayAdapter<>(MainActivity.this,
+                                            android.R.layout.simple_dropdown_item_1line,
+                                            names));
+                            noCategoryWarning.setVisibility(
+                                    names.isEmpty() ? View.VISIBLE : View.GONE);
+                        } else {
+                            noCategoryWarning.setVisibility(View.VISIBLE);
+                        }
                     }
-                    categorySpinner.setAdapter(
-                            new ArrayAdapter<>(MainActivity.this,
-                                    android.R.layout.simple_dropdown_item_1line,
-                                    names));
-                    noCategoryWarning.setVisibility(
-                            names.isEmpty() ? View.VISIBLE : View.GONE);
-                } else {
-                    noCategoryWarning.setVisibility(View.VISIBLE);
-                }
-            }
-            @Override public void onFailure(Call<List<CategoryResponse>> call,
-                                            Throwable t) {
-                Toast.makeText(MainActivity.this,
-                        "Failed to load categories", Toast.LENGTH_SHORT).show();
-                noCategoryWarning.setVisibility(View.VISIBLE);
-            }
-        });
+                    @Override public void onFailure(
+                            Call<List<CategoryResponse>> call, Throwable t) {
+                        Toast.makeText(MainActivity.this,
+                                "Failed to load themes",
+                                Toast.LENGTH_SHORT).show();
+                        noCategoryWarning.setVisibility(View.VISIBLE);
+                    }
+                });
     }
 
     private void promptForCategoryNameAndCreateCategory() {
@@ -231,12 +232,13 @@ public class MainActivity extends AppCompatActivity {
         EditText box = dialog.findViewById(R.id.editCategoryName);
 
         new MaterialAlertDialogBuilder(this)
-                .setTitle("Enter Category Name")
+                .setTitle("Enter theme name")
                 .setView(dialog)
-                .setPositiveButton("OK", (d,w) -> {
+                .setPositiveButton("OK", (d,w)->{
                     String name = box.getText().toString().trim();
                     if (name.isEmpty()) {
-                        Toast.makeText(this, "Name cannot be empty",
+                        Toast.makeText(this,
+                                "Name cannot be empty",
                                 Toast.LENGTH_SHORT).show();
                     } else {
                         createLocationAndCategory(name);
@@ -258,18 +260,17 @@ public class MainActivity extends AppCompatActivity {
                                 && res.body().getLocation()!=null) {
                             int locId = Integer.parseInt(
                                     res.body().getLocation().getId());
+                            String address = "Unknown";
                             try {
                                 List<Address> addrs = new Geocoder(
                                         MainActivity.this, Locale.getDefault())
                                         .getFromLocation(
                                                 currentLatitude, currentLongitude, 1);
-                                String address = addrs.isEmpty()
-                                        ? "Unknown"
-                                        : addrs.get(0).getAddressLine(0);
-                                createCategory(locId, name, address);
-                            } catch (IOException e) {
-                                createCategory(locId, name, "Unknown");
-                            }
+                                if (!addrs.isEmpty())
+                                    address = addrs.get(0).getAddressLine(0);
+                            } catch (IOException ignored){}
+
+                            createCategory(locId, name, address);
                         } else {
                             Toast.makeText(MainActivity.this,
                                     "Location creation failed",
@@ -284,65 +285,101 @@ public class MainActivity extends AppCompatActivity {
                 });
     }
 
-    private void createCategory(int locationId, String name, String address) {
-        apiService.createCategory(
-                new CategoryRequest(name, address, 5.0, locationId, StatusEnum.WAIT)
-        ).enqueue(new Callback<CategoryResponse>() {
-            @Override public void onResponse(Call<CategoryResponse> call,
-                                             Response<CategoryResponse> res) {
-                if (res.isSuccessful() && res.body()!=null) {
-                    selectedCategoryId =
-                            Integer.parseInt(res.body().getId());
-                    launchCamera();
-                } else {
-                    Toast.makeText(MainActivity.this,
-                            "Category creation failed",
-                            Toast.LENGTH_SHORT).show();
-                }
-            }
-            @Override public void onFailure(Call<CategoryResponse> call, Throwable t) {
-                Toast.makeText(MainActivity.this,
-                        "Network error", Toast.LENGTH_SHORT).show();
-            }
-        });
+    private void createCategory(int locId, String name, String address) {
+        apiService.createCategory(new CategoryRequest(
+                        name, address, 5.0, locId, StatusEnum.WAIT))
+                .enqueue(new Callback<CategoryResponse>() {
+                    @Override public void onResponse(
+                            Call<CategoryResponse> call,
+                            Response<CategoryResponse> res) {
+                        if (res.isSuccessful() && res.body()!=null) {
+                            selectedCategoryId =
+                                    Integer.parseInt(res.body().getId());
+                            launchCamera();
+                        } else {
+                            Toast.makeText(MainActivity.this,
+                                    "Theme creation failed",
+                                    Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                    @Override public void onFailure(
+                            Call<CategoryResponse> call, Throwable t) {
+                        Toast.makeText(MainActivity.this,
+                                "Network error", Toast.LENGTH_SHORT).show();
+                    }
+                });
     }
 
     private void launchCamera() {
-        startActivityForResult(
-                new Intent(this, CameraActivity.class),
-                CAMERA_REQ_CODE);
+        Intent i = new Intent(this, CameraActivity.class);
+        i.putExtra("theme_id", selectedCategoryId);
+        startActivityForResult(i, REQ_CAMERA_CODE);
+    }
+
+
+    /** If spinner text matches one of your loaded names, grab its ID here: */
+    private void resolveSelectedCategoryId() {
+        String txt = categorySpinner.getText().toString();
+        for (CategoryResponse c : loadedCategories) {
+            if (c.getName().equals(txt)) {
+                selectedCategoryId = Integer.parseInt(c.getId());
+                return;
+            }
+        }
+        selectedCategoryId = -1;
+    }
+
+    private boolean hasCameraPermission() {
+        return ContextCompat.checkSelfPermission(this,
+                Manifest.permission.CAMERA)
+                == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /** your custom dialog from the screenshot */
+    private void showCameraPermissionDialog() {
+        String version = BuildConfig.VERSION_NAME;
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Camera Permission Required")
+                .setMessage("Staucktion v" + version +
+                        " needs camera access to take and upload photos.\n\n" +
+                        "Please enable CAMERA in settings.")
+                .setPositiveButton("GO TO SETTINGS", (d,w)-> {
+                    Intent i = new Intent(
+                            android.provider.Settings
+                                    .ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.fromParts("package", getPackageName(), null));
+                    startActivity(i);
+                })
+                .setNegativeButton("CANCEL", null)
+                .show();
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode,
-                                           @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(
-                requestCode, permissions, grantResults);
+                                           @NonNull String[] perms, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, perms, grantResults);
 
         if (requestCode == REQ_LOCATION) {
             if (grantResults.length>0
-                    && grantResults[0]==PackageManager.PERMISSION_GRANTED) {
+                    && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 onLocationPermissionGranted();
             } else {
                 Toast.makeText(this,
-                        "Location permission required",
-                        Toast.LENGTH_SHORT).show();
+                        "Location permission required", Toast.LENGTH_SHORT).show();
                 finish();
             }
         }
 
         if (requestCode == REQ_CAMERA_ON_OPEN) {
             if (grantResults.length>0
-                    && grantResults[0]==PackageManager.PERMISSION_GRANTED) {
+                    && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 launchCamera();
             } else {
                 Toast.makeText(this,
-                        "Camera permission required",
-                        Toast.LENGTH_LONG).show();
+                        "Camera permission required", Toast.LENGTH_LONG).show();
             }
         }
-        // REQ_CAMERA_STARTUP is only to prime the system dialog; no extra action needed
+        // REQ_CAMERA_PRIME is just to prime the system dialog
     }
 
     private void showLocationErrorDialog() {
@@ -359,7 +396,8 @@ public class MainActivity extends AppCompatActivity {
                 .inflate(R.layout.layout_avatar_popup, null);
         TextView name = popup.findViewById(R.id.popupFullName);
         ImageView pic = popup.findViewById(R.id.popupProfileImage);
-        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
+        SharedPreferences prefs =
+                getSharedPreferences("AppPrefs", MODE_PRIVATE);
         name.setText(prefs.getString("userName","User"));
         String url = prefs.getString("userPhotoUrl","");
         if (!url.isEmpty()) Glide.with(this).load(url).into(pic);
@@ -371,28 +409,46 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadUserProfile() {
-        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
+        SharedPreferences prefs =
+                getSharedPreferences("AppPrefs", MODE_PRIVATE);
         String[] parts = prefs.getString("userName","?").split("\\s+");
         StringBuilder ab = new StringBuilder();
-        for (String p : parts) ab.append(p.charAt(0));
+        for (String p:parts) ab.append(p.charAt(0));
         textAvatar.setText(ab.toString().toUpperCase());
     }
 
     private void performLogout() {
-        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
+        SharedPreferences prefs =
+                getSharedPreferences("AppPrefs", MODE_PRIVATE);
         prefs.edit().clear().apply();
         GoogleSignInClient client = GoogleSignIn.getClient(this,
                 new com.google.android.gms.auth.api.signin
                         .GoogleSignInOptions.Builder(
                         com.google.android.gms.auth.api.signin
                                 .GoogleSignInOptions.DEFAULT_SIGN_IN)
-                        .requestEmail().build()
-        );
+                        .requestEmail().build());
         client.signOut().addOnCompleteListener(t-> {
             startActivity(new Intent(this, LoginActivity.class)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                             | Intent.FLAG_ACTIVITY_CLEAR_TASK));
             finish();
         });
+    }
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_CAMERA_CODE
+                && resultCode == RESULT_OK
+                && data != null) {
+
+            String path = data.getStringExtra("image_path");
+
+            Intent upl = new Intent(this, ApiActivity.class);
+            upl.putExtra("image_path", path);
+            upl.putExtra("theme_id", selectedCategoryId);  // ← make sure this key matches!
+
+            startActivity(upl);
+            finish();
+        }
     }
 }
