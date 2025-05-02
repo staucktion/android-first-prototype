@@ -399,11 +399,9 @@ public class MainActivity extends AppCompatActivity {
 
     /** your custom dialog from the screenshot */
     private void showCameraPermissionDialog() {
-        String version = BuildConfig.VERSION_NAME;
         new MaterialAlertDialogBuilder(this)
                 .setTitle("Camera Permission Required")
-                .setMessage("Staucktion v" + version +
-                        " needs camera access to take and upload photos.\n\n" +
+                .setMessage("Staucktion needs camera access to take and upload photos.\n\n" +
                         "Please enable CAMERA in settings.")
                 .setPositiveButton("GO TO SETTINGS", (d,w)-> {
                     Intent i = new Intent(
