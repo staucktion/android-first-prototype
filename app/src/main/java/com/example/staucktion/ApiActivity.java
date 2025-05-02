@@ -24,6 +24,8 @@ import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
+//class StatusEnum { public static final int WAIT = 2; }
+
 public class ApiActivity extends AppCompatActivity {
 
     private ApiService apiService;
@@ -59,7 +61,7 @@ public class ApiActivity extends AppCompatActivity {
         deviceInfo = getDeviceInfo();
 
         imagePath = getIntent().getStringExtra("image_path");
-        categoryId = getIntent().getIntExtra("theme_id", -1);
+        categoryId = getIntent().getIntExtra("theme_id", -1); //category_id should stay
 
         if (categoryId == -1 || imagePath == null || imagePath.isEmpty()) {
             Toast.makeText(this, "Required data missing.", Toast.LENGTH_SHORT).show();
