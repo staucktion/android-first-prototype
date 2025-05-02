@@ -107,19 +107,26 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:hint="@string/select_category"
-                    app:endIconMode="dropdown_menu"
+                    app:startIconDrawable="@drawable/ic_arrow_drop_down_24"
+                    app:startIconContentDescription="@string/show_themes"
+                    app:startIconTint="?attr/colorOnSurface"
+                    app:endIconMode="clear_text"
+                    app:endIconContentDescription="@string/clear_theme"
+                    app:endIconTint="?attr/colorOnSurface"
                     app:layout_constraintTop_toTopOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintEnd_toEndOf="parent">
-                    <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                        android:id="@+id/categoryAutoCompleteTextView"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:padding="8dp"
-                        android:inputType="none" />
-                </com.google.android.material.textfield.TextInputLayout>
+                <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                    android:id="@+id/categoryAutoCompleteTextView"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="8dp"
+                    android:inputType="text"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"/>
+            </com.google.android.material.textfield.TextInputLayout>
 
-                <!-- "No Categories" Warning -->
+            <!-- "No Categories" Warning -->
                 <com.google.android.material.textview.MaterialTextView
                     android:id="@+id/noCategoryWarning"
                     android:layout_width="0dp"

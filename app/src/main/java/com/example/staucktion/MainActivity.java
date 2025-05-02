@@ -9,6 +9,7 @@ import android.location.Address;
 import android.location.Geocoder;
 import android.location.LocationManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Looper;
 import android.view.LayoutInflater;
@@ -46,6 +47,8 @@ import com.google.android.gms.location.LocationServices;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.textfield.MaterialAutoCompleteTextView;
+import com.google.android.material.textfield.TextInputLayout;
 import com.google.android.material.textview.MaterialTextView;
 
 import java.io.IOException;
@@ -78,7 +81,6 @@ public class MainActivity extends AppCompatActivity {
     private double                          currentLatitude, currentLongitude;
     private int                             selectedCategoryId = -1;
     private List<CategoryResponse>          loadedCategories   = new ArrayList<>();
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -92,6 +94,25 @@ public class MainActivity extends AppCompatActivity {
 
         setupToolbar();
         bindViews();
+        MaterialAutoCompleteTextView spinner =
+                findViewById(R.id.categoryAutoCompleteTextView);
+        TextInputLayout layout =
+                findViewById(R.id.categoryDropdownLayout);
+
+        // 1) suppress the soft‐keyboard
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            spinner.setShowSoftInputOnFocus(false);
+        }
+
+        // 2) wire up arrow and field taps to open the list & focus
+        layout.setStartIconOnClickListener(v -> {
+            spinner.requestFocus();
+            spinner.showDropDown();
+        });
+        spinner.setOnClickListener(v -> {
+            spinner.requestFocus();
+            spinner.showDropDown();
+        });
 
         // 1) Request LOCATION
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)

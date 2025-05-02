@@ -30,4 +30,7 @@
     <string name="no_categories">No themes found for this location. Please create a new theme.</string>
     <string name="create_new_category">Create new theme</string>
     <string name="uploading">Uploading</string>
+    <string name="clear_theme">Clear theme</string>
+    <string name="show_themes">Show Themes</string>
+
 </resources>
