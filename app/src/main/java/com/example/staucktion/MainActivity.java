@@ -11,6 +11,7 @@ import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -81,6 +82,7 @@ public class MainActivity extends AppCompatActivity {
     private double                          currentLatitude, currentLongitude;
     private int                             selectedCategoryId = -1;
     private List<CategoryResponse>          loadedCategories   = new ArrayList<>();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -128,6 +130,45 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // ① Create a Handler and Runnable at class level
+    private final Handler refreshHandler = new Handler(Looper.getMainLooper());
+    private final Runnable refreshRunnable = new Runnable() {
+        @Override
+        public void run() {
+            // only if we still have LOCATION permission
+            if (ContextCompat.checkSelfPermission(
+                    MainActivity.this,
+                    Manifest.permission.ACCESS_FINE_LOCATION)
+                    == PackageManager.PERMISSION_GRANTED) {
+
+                // pull the last known location…
+                fusedLocationClient.getLastLocation()
+                        .addOnSuccessListener(location -> {
+                            if (location != null) {
+                                currentLatitude  = location.getLatitude();
+                                currentLongitude = location.getLongitude();
+                                loadApprovedCategories();  // refresh the spinner
+                            }
+                        });
+            }
+            // schedule next run in 10 000 ms
+            refreshHandler.postDelayed(this, 10_000);
+        }
+    };
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        // ② kick off the first refresh as soon as Activity is visible
+        refreshHandler.post(refreshRunnable);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        // ③ stop the loop when Activity is no longer in foreground
+        refreshHandler.removeCallbacks(refreshRunnable);
+    }
     private void setupToolbar() {
         MaterialToolbar toolbar = findViewById(R.id.topAppBar);
         textAvatar = toolbar.findViewById(R.id.textAvatar);
