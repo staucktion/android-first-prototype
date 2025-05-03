@@ -37,8 +37,8 @@ import com.example.staucktion.managers.LocationApiManager;
 import com.example.staucktion.models.CategoryRequest;
 import com.example.staucktion.models.CategoryResponse;
 import com.example.staucktion.models.LocationCreateResponse;
-import com.google.android.datatransport.BuildConfig;
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInClient;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
@@ -451,30 +451,76 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
 
+    // 1) loadUserProfile: always pull from "userFullName"
+    private void loadUserProfile() {
+        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
+        String role     = prefs.getString("userRole", "").toLowerCase(Locale.ROOT);
+        String fullName = prefs.getString("userFullName", "?");
+        String avatarText;
+
+        // only show ADM/VAL if they are *not* a Google user
+        if ("admin".equals(role)) {
+            avatarText = "ADM";
+        }
+        else if ("validator".equals(role)) {
+            avatarText = "VLD";
+        }
+        else {
+            avatarText = getInitials(fullName);
+        }
+
+        textAvatar.setText(avatarText);
+    }
+
+    // 2) showAvatarPopup: only touch popupFullName / popupProfileImage
     private void showAvatarPopup(View anchor) {
         View popup = LayoutInflater.from(this)
                 .inflate(R.layout.layout_avatar_popup, null);
-        TextView name = popup.findViewById(R.id.popupFullName);
-        ImageView pic = popup.findViewById(R.id.popupProfileImage);
-        SharedPreferences prefs =
-                getSharedPreferences("AppPrefs", MODE_PRIVATE);
-        name.setText(prefs.getString("userName","User"));
-        String url = prefs.getString("userPhotoUrl","");
-        if (!url.isEmpty()) Glide.with(this).load(url).into(pic);
+        TextView popupName = popup.findViewById(R.id.popupFullName);
+        ImageView popupPic = popup.findViewById(R.id.popupProfileImage);
+
+        SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
+        String userRole = prefs.getString("userRole", "");
+        String fullName = prefs.getString("userFullName", "");
+        boolean google  = isGoogleUser();
+
+
+        if (!google
+                && ("admin".equalsIgnoreCase(userRole)
+                || "validator".equalsIgnoreCase(userRole))
+        ) {
+            String displayRole =
+                    Character.toUpperCase(userRole.charAt(0)) +
+                            userRole.substring(1).toLowerCase() +
+                            " User";
+            popupName.setText(displayRole);
+        } else {
+            popupName.setText(fullName);
+        }
+
+        String url = prefs.getString("userPhotoUrl", "");
+        if (!url.isEmpty()) {
+            Glide.with(this).load(url).into(popupPic);
+        }
 
         new PopupWindow(popup,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
-                true).showAsDropDown(anchor);
+                true)
+                .showAsDropDown(anchor);
     }
-
-    private void loadUserProfile() {
-        SharedPreferences prefs =
-                getSharedPreferences("AppPrefs", MODE_PRIVATE);
-        String[] parts = prefs.getString("userName","?").split("\\s+");
-        StringBuilder ab = new StringBuilder();
-        for (String p:parts) ab.append(p.charAt(0));
-        textAvatar.setText(ab.toString().toUpperCase());
+    private String getInitials(String name){
+        String[] parts = name.trim().split("\\s+");
+        StringBuilder sb = new StringBuilder();
+        for (String p : parts){
+            if (!p.isEmpty()) sb.append(p.charAt(0));
+        }
+        return sb.toString().toUpperCase(Locale.ROOT);
+    }
+    // helper to know if this session came via Google
+    private boolean isGoogleUser(){
+        GoogleSignInAccount acct = GoogleSignIn.getLastSignedInAccount(this);
+        return acct != null;
     }
 
     private void performLogout() {
