@@ -5,13 +5,14 @@
     android:layout_height="wrap_content"
     android:background="@drawable/popup_background"
     android:orientation="vertical"
-    android:padding="8dp">
+    android:padding="12dp">
 
     <!-- Profile Image in the Popup -->
     <ImageView
         android:id="@+id/popupProfileImage"
         android:layout_width="60dp"
         android:layout_height="60dp"
+        android:layout_gravity="center"
         android:src="@drawable/default_profile"
         android:contentDescription="@string/default_profile_image" />
 
@@ -22,6 +23,6 @@
         android:layout_height="wrap_content"
         android:text="John Doe"
         android:textColor="@android:color/black"
-        android:textSize="16sp"
+        android:textSize="18sp"
         android:layout_marginTop="4dp" />
 </LinearLayout>
