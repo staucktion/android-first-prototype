@@ -159,6 +159,7 @@ public class LoginActivity extends AppCompatActivity {
                                 // 1) Start with a fallback (Google’s string ID parsed to long)
                                 UserInfoResponse wrapper = userRes.body();
                                 int userId = wrapper.getUser().getUserId();
+                                String role = wrapper.getUser().getRoleName();  // “admin” or “validator”
 
                                 // 3) Persist to SharedPreferences (convert back to String if you store as String)
                                 SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
@@ -166,14 +167,17 @@ public class LoginActivity extends AppCompatActivity {
                                         .putString("appToken", jwt)
                                         .putLong("appTokenExpiry", expiry)
                                         .putString("userId", String.valueOf(userId))
-                                        .putString("userName", acct.getDisplayName())
+                                        .putString("userFullName", acct.getDisplayName())
                                         .putString("userPhotoUrl",
                                                 acct.getPhotoUrl() != null
                                                         ? acct.getPhotoUrl().toString()
                                                         : ""
                                         )
+                                        .putString("userRole", wrapper.getUser().getRoleName())  // e.g. "admin" or "validator"
                                         .apply();
                                 Timber.d("User Id is: %d", userId);
+                                Timber.d("LoginActivity → stored userRole = %s",
+                                        wrapper.getUser().getRoleName());
                                 // 7) Wire up OneSignal external ID
                                 OneSignal.setExternalUserId(  String.valueOf(userId),
                                         new OSExternalUserIdUpdateCompletionHandler() {

@@ -123,12 +123,15 @@ public class EmailLoginActivity extends AppCompatActivity {
                     String last    = res.body().getUser().getLastName();
                     String fullName= first + " " + last;
                     String photoUrl= res.body().getUser().getPhotoUrl();
+                    String roleName = res.body().getUser().getRoleName();  // “admin” or “validator”
 
                     // 2) Save to prefs
                     prefs.edit()
-                            .putString("userName", fullName)
+                            .putString("userFullName", fullName)
                             .putString("userPhotoUrl", photoUrl != null ? photoUrl : "")
+                            .putString("userRole", roleName)
                             .apply();
+                    Timber.d("EmailLoginActivity → stored userRole = %s", roleName);
 
                     // 3) Tell OneSignal who we are
                     OneSignal.setExternalUserId(

@@ -14,4 +14,5 @@
     <color name="purple_700">#3700B3</color>
     <color name="heroSubtitle">#636363</color>
     <color name="categoryCard_background">#F5F5F5</color>
+    <color name="dark_grey">#3b3b3b</color>
 </resources>
