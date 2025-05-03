@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.util.Base64;
 import android.util.Log;
 import android.util.Patterns;
+import android.view.View;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -22,7 +23,10 @@ import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textview.MaterialTextView;
 import com.onesignal.OneSignal;
 
+import org.json.JSONException;
 import org.json.JSONObject;
+
+import java.io.IOException;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -33,6 +37,7 @@ public class EmailLoginActivity extends AppCompatActivity {
     private static final String TAG = "EmailLogin";
     private TextInputEditText inputEmail, inputPassword;
     private MaterialButton     btnLogInEmail;
+    private MaterialTextView tvLoginError;
 
     @SuppressLint("MissingInflatedId")
     @Override
@@ -43,6 +48,7 @@ public class EmailLoginActivity extends AppCompatActivity {
         inputEmail    = findViewById(R.id.inputEmail);
         inputPassword = findViewById(R.id.inputPassword);
         btnLogInEmail = findViewById(R.id.btnLogInEmail);
+        tvLoginError = findViewById(R.id.tvLoginError);
 
         ApiService svc = RetrofitClient.getInstance().create(ApiService.class);
 
@@ -58,11 +64,20 @@ public class EmailLoginActivity extends AppCompatActivity {
                                                Response<AuthResponse> res) {
                             Log.d(TAG, "login response code=" + res.code());
                             if (!res.isSuccessful() || res.body() == null) {
-                                Toast.makeText(EmailLoginActivity.this,
-                                        "Login failed: " + res.code(),
-                                        Toast.LENGTH_SHORT).show();
+                                String msg = "Login failed: " + res.code();
+                                try {
+                                    if (res.errorBody() != null) {
+                                        String json = res.errorBody().string();
+                                        JSONObject o = new JSONObject(json);
+                                        msg = o.optString("message", msg);
+                                    }
+                                } catch (IOException | JSONException e) {
+                                    Log.e(TAG, "error parsing login error", e);
+                                }
+                                Toast.makeText(EmailLoginActivity.this, msg, Toast.LENGTH_LONG).show();
                                 return;
                             }
+                            tvLoginError.setVisibility(View.GONE);
                             String jwt = res.body().getToken();
                             onAuthSuccess(jwt);
                         }

@@ -80,6 +80,14 @@
             android:textColor="@color/prompt_text_color"
             android:textSize="14sp" />
 
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/tvLoginError"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="8dp"
+            android:textColor="?attr/colorError"
+            android:visibility="gone"
+            android:textSize="14sp" />
 
     </LinearLayout>
 </ScrollView>
