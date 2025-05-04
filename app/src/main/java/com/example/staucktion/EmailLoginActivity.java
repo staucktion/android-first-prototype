@@ -3,6 +3,8 @@ package com.example.staucktion;
 import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Base64;
 import android.util.Log;
@@ -12,6 +14,8 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.example.staucktion.api.ApiService;
 import com.example.staucktion.api.RetrofitClient;
@@ -129,11 +133,8 @@ public class EmailLoginActivity extends AppCompatActivity {
             @Override
             public void onResponse(Call<UserInfoResponse> call,
                                    Response<UserInfoResponse> res) {
-                if (res.isSuccessful() && res.body()!=null
-                        && res.body().getUser()!=null) {
-
-                    // 1) Extract the profile fields
-                    int   userId   = res.body().getUser().getUserId();
+                if (res.isSuccessful() && res.body()!=null) {
+                    int userId = res.body().getUser().getUserId();
                     String first   = res.body().getUser().getFirstName();
                     String last    = res.body().getUser().getLastName();
                     String fullName= first + " " + last;
@@ -165,19 +166,21 @@ public class EmailLoginActivity extends AppCompatActivity {
                 }
 
                 // 4) Finally launch MainActivity
-                Intent intent = new Intent(EmailLoginActivity.this, MainActivity.class)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                startActivity(intent);
-                finish();
+                navigateToMainWithNotifications();
             }
 
             @Override
-            public void onFailure(Call<UserInfoResponse> call, Throwable t) {
-                // Even on failure, still proceed:
-                Intent intent = new Intent(EmailLoginActivity.this, MainActivity.class)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                startActivity(intent);
-                finish();
+            public void onFailure(@NonNull Call<UserInfoResponse> call, @NonNull Throwable t) {
+                // Log the network or parsing error
+                Timber.e(t, "Network error fetching user info (email login)");
+
+                // Optionally show a toast so the user knows something went wrong fetching their profile
+                Toast.makeText(EmailLoginActivity.this,
+                        "Warning: couldn’t load profile — proceeding anyway",
+                        Toast.LENGTH_SHORT).show();
+
+                // Finally, navigate to MainActivity regardless
+                navigateToMainWithNotifications();
             }
         });
     }
@@ -200,4 +203,42 @@ public class EmailLoginActivity extends AppCompatActivity {
             return -1;
         }
     }
+    private void navigateToMainWithNotifications() {
+        Intent i = new Intent(this, MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(this,
+                        android.Manifest.permission.POST_NOTIFICATIONS)
+                        != PackageManager.PERMISSION_GRANTED) {
+
+            // ask the user for notifications
+            ActivityCompat.requestPermissions(
+                    this,
+                    new String[]{ android.Manifest.permission.POST_NOTIFICATIONS },
+                    1001
+            );
+            // return here; onRequestPermissionsResult will finish the login
+            return;
+        }
+
+        // either we already have permission or we're on < Android 13
+        startActivity(i);
+        finish();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+                                           @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        if (requestCode == 1001) {
+            // optional: toast if the user denied
+            startActivity(new Intent(this, MainActivity.class)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));
+            finish();
+        } else {
+            super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        }
+    }
+
 }
