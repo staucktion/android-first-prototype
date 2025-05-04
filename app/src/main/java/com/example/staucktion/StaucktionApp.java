@@ -32,10 +32,6 @@ public class StaucktionApp extends Application {
         OneSignal.initWithContext(this);
         OneSignal.setAppId(ONESIGNAL_APP_ID);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            OneSignal.promptForPushNotifications();
-        }
-
         // 3) Log current subscription state
         OSDeviceState state = OneSignal.getDeviceState();
         if (state != null) {

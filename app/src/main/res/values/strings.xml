@@ -10,8 +10,8 @@
     <string name="default_profile_image">Profile Image</string>
     <string name="profile_btn">Profile</string>
     <string name="open_camera">Open Camera</string>
-    <string name="login_google">Log in via Google</string>
-    <string name="login_email">Log in via Email</string>
+    <string name="login_google">Log in with Google</string>
+    <string name="login_email">Log in with Email</string>
     <!-- Text for the upload instructions/status TextView -->
     <string name="upload_instructions">Select a photo to upload</string>
 
