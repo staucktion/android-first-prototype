@@ -1,8 +1,11 @@
 package com.example.staucktion;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Base64;
 import android.util.Log;
@@ -12,6 +15,8 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.example.staucktion.api.ApiService;
 import com.example.staucktion.api.RetrofitClient;
@@ -35,9 +40,11 @@ import timber.log.Timber;
 
 public class EmailLoginActivity extends AppCompatActivity {
     private static final String TAG = "EmailLogin";
+    private static final int   REQ_POST_NOTIFS = 1001;
+
     private TextInputEditText inputEmail, inputPassword;
-    private MaterialButton     btnLogInEmail;
-    private MaterialTextView tvLoginError;
+    private MaterialButton    btnLogInEmail;
+    private MaterialTextView  tvLoginError;
 
     @SuppressLint("MissingInflatedId")
     @Override
@@ -48,156 +55,159 @@ public class EmailLoginActivity extends AppCompatActivity {
         inputEmail    = findViewById(R.id.inputEmail);
         inputPassword = findViewById(R.id.inputPassword);
         btnLogInEmail = findViewById(R.id.btnLogInEmail);
-        tvLoginError = findViewById(R.id.tvLoginError);
+        tvLoginError  = findViewById(R.id.tvLoginError);
 
-        ApiService svc = RetrofitClient.getInstance().create(ApiService.class);
-
-        btnLogInEmail.setOnClickListener(v -> {
-            String email = inputEmail.getText().toString().trim();
-            String pass  = inputPassword.getText().toString();
-            if (!isValid(email, pass)) return;
-
-            svc.loginWithEmail(new EmailAuthRequest(email, pass))
-                    .enqueue(new Callback<AuthResponse>() {
-                        @Override
-                        public void onResponse(Call<AuthResponse> call,
-                                               Response<AuthResponse> res) {
-                            Log.d(TAG, "login response code=" + res.code());
-                            if (!res.isSuccessful() || res.body() == null) {
-                                String msg = "Login failed: " + res.code();
-                                try {
-                                    if (res.errorBody() != null) {
-                                        String json = res.errorBody().string();
-                                        JSONObject o = new JSONObject(json);
-                                        msg = o.optString("message", msg);
-                                    }
-                                } catch (IOException | JSONException e) {
-                                    Log.e(TAG, "error parsing login error", e);
-                                }
-                                Toast.makeText(EmailLoginActivity.this, msg, Toast.LENGTH_LONG).show();
-                                return;
-                            }
-                            tvLoginError.setVisibility(View.GONE);
-                            String jwt = res.body().getToken();
-                            onAuthSuccess(jwt);
-                        }
-                        @Override
-                        public void onFailure(Call<AuthResponse> call, Throwable t) {
-                            Log.e(TAG, "network error", t);
-                            Toast.makeText(EmailLoginActivity.this,
-                                    "Network error: " + t.getMessage(),
-                                    Toast.LENGTH_SHORT).show();
-                        }
-                    });
-        });
         MaterialTextView tvPrompt = findViewById(R.id.tvPrompt);
         tvPrompt.setOnClickListener(v ->
-                startActivity(new Intent(EmailLoginActivity.this, RegisterActivity.class))
+                startActivity(new Intent(this, RegisterActivity.class))
         );
+
+        btnLogInEmail.setOnClickListener(v -> attemptEmailLogin());
     }
 
-    private boolean isValid(String email, String pass) {
+    private void attemptEmailLogin() {
+        String email = inputEmail.getText().toString().trim();
+        String pass  = inputPassword.getText().toString();
+
         if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
             inputEmail.setError("Invalid email");
-            return false;
+            return;
         }
         if (pass.length() < 6) {
             inputPassword.setError("Password too short");
-            return false;
+            return;
         }
-        return true;
+
+        ApiService svc = RetrofitClient.getInstance().create(ApiService.class);
+        svc.loginWithEmail(new EmailAuthRequest(email, pass))
+                .enqueue(new Callback<AuthResponse>() {
+                    @Override
+                    public void onResponse(Call<AuthResponse> call,
+                                           Response<AuthResponse> res) {
+                        if (!res.isSuccessful() || res.body() == null) {
+                            String msg = "Login failed: " + res.code();
+                            try {
+                                if (res.errorBody() != null) {
+                                    String json = res.errorBody().string();
+                                    JSONObject o = new JSONObject(json);
+                                    msg = o.optString("message", msg);
+                                }
+                            } catch (IOException | JSONException e) {
+                                Log.e(TAG, "error parsing login error", e);
+                            }
+                            Toast.makeText(EmailLoginActivity.this, msg, Toast.LENGTH_LONG).show();
+                            return;
+                        }
+
+                        tvLoginError.setVisibility(View.GONE);
+                        onAuthSuccess(res.body().getToken());
+                    }
+
+                    @Override
+                    public void onFailure(Call<AuthResponse> call, Throwable t) {
+                        Log.e(TAG, "network error", t);
+                        Toast.makeText(EmailLoginActivity.this,
+                                "Network error: " + t.getMessage(),
+                                Toast.LENGTH_SHORT).show();
+                    }
+                });
     }
 
     private void onAuthSuccess(String jwt) {
-        // 1) Decode & store expiry (same as you have now)
-        long expiryMillis = extractExpiryFromJwt(jwt);
-        if (expiryMillis <= 0) {
-            expiryMillis = System.currentTimeMillis() + 24 * 60 * 60 * 1000L;  // fallback 24h
-        }
+        // store token + expiry
+        long expiry = extractExpiry(jwt);
         SharedPreferences prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE);
         prefs.edit()
                 .putString("appToken", jwt)
-                .putLong("appTokenExpiry", expiryMillis)
+                .putLong("appTokenExpiry", expiry)
                 .apply();
 
-        // 2) Tell Retrofit to use this token
+        // configure Retrofit
         RetrofitClient.getInstance().setAuthToken(jwt);
 
-        // 3) Now fetch the user’s profile
+        // fetch user info
         ApiService svc = RetrofitClient.getInstance().create(ApiService.class);
         svc.getUserInfo().enqueue(new Callback<UserInfoResponse>() {
             @Override
             public void onResponse(Call<UserInfoResponse> call,
                                    Response<UserInfoResponse> res) {
-                if (res.isSuccessful() && res.body()!=null
-                        && res.body().getUser()!=null) {
+                if (res.isSuccessful() && res.body() != null) {
+                    var user = res.body().getUser();
+                    int    id    = user.getUserId();
+                    String full  = user.getFirstName() + " " + user.getLastName();
+                    String photo = user.getPhotoUrl() != null ? user.getPhotoUrl() : "";
+                    String role  = user.getRoleName();
 
-                    // 1) Extract the profile fields
-                    int   userId   = res.body().getUser().getUserId();
-                    String first   = res.body().getUser().getFirstName();
-                    String last    = res.body().getUser().getLastName();
-                    String fullName= first + " " + last;
-                    String photoUrl= res.body().getUser().getPhotoUrl();
-                    String roleName = res.body().getUser().getRoleName();  // “admin” or “validator”
-
-                    // 2) Save to prefs
                     prefs.edit()
-                            .putString("userFullName", fullName)
-                            .putString("userPhotoUrl", photoUrl != null ? photoUrl : "")
-                            .putString("userRole", roleName)
+                            .putString("userFullName", full)
+                            .putString("userPhotoUrl", photo)
+                            .putString("userRole", role)
                             .apply();
-                    Timber.d("EmailLoginActivity → stored userRole = %s", roleName);
 
-                    // 3) Tell OneSignal who we are
                     OneSignal.setExternalUserId(
-                            String.valueOf(userId),
-                            new OneSignal.OSExternalUserIdUpdateCompletionHandler() {
-                                @Override
-                                public void onSuccess(JSONObject results) {
-                                    Timber.d("OneSignal external ID set (email): %s", results);
-                                }
-                                @Override
-                                public void onFailure(@NonNull OneSignal.ExternalIdError error) {
-                                    Timber.e("OneSignal external ID error (email): %s", error);
-                                }
-                            }
+                            String.valueOf(id)
                     );
                 }
 
-                // 4) Finally launch MainActivity
-                Intent intent = new Intent(EmailLoginActivity.this, MainActivity.class)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                startActivity(intent);
-                finish();
+                // whether we succeeded or not, move into the app
+                enterMainWithNotificationPrompt();
             }
 
             @Override
             public void onFailure(Call<UserInfoResponse> call, Throwable t) {
-                // Even on failure, still proceed:
-                Intent intent = new Intent(EmailLoginActivity.this, MainActivity.class)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                startActivity(intent);
-                finish();
+                Timber.e(t, "profile fetch failed");
+                enterMainWithNotificationPrompt();
             }
         });
     }
 
-    /**
-     * JWT payload is Base64-URL; decode, parse JSON, read "exp" (seconds) → ms
-     */
-    private long extractExpiryFromJwt(String jwt) {
+    private void enterMainWithNotificationPrompt() {
+        Intent i = new Intent(this, MainActivity.class)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+
+        // on Android 13+, ask for POST_NOTIFICATIONS if not yet granted
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && ContextCompat.checkSelfPermission(this,
+                Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+
+            ActivityCompat.requestPermissions(
+                    this,
+                    new String[]{ Manifest.permission.POST_NOTIFICATIONS },
+                    REQ_POST_NOTIFS
+            );
+        } else {
+            // on older versions or already granted: go ahead
+            startActivity(i);
+            finish();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+                                           @NonNull String[] perms,
+                                           @NonNull int[] results) {
+        super.onRequestPermissionsResult(requestCode, perms, results);
+        if (requestCode == REQ_POST_NOTIFS) {
+            // either granted or denied, but we still proceed
+            Intent i = new Intent(this, MainActivity.class)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(i);
+            finish();
+        }
+    }
+
+    private long extractExpiry(String jwt) {
         try {
             String[] parts = jwt.split("\\.");
-            if (parts.length != 3) return -1;
-            byte[] decoded = Base64.decode(parts[1], Base64.URL_SAFE|Base64.NO_PADDING|Base64.NO_WRAP);
-            String payload = new String(decoded, "UTF-8");
-            JSONObject obj = new JSONObject(payload);
-            if (!obj.has("exp")) return -1;
-            long expSeconds = obj.getLong("exp");
-            return expSeconds * 1000L;
+            byte[]  decoded = Base64.decode(parts[1],
+                    Base64.URL_SAFE|Base64.NO_PADDING|Base64.NO_WRAP);
+            JSONObject obj = new JSONObject(new String(decoded, "UTF-8"));
+            return obj.has("exp") ? obj.getLong("exp")*1000L
+                    : System.currentTimeMillis() + 86_400_000L;
         } catch (Exception e) {
-            Log.e(TAG, "failed to parse JWT exp", e);
-            return -1;
+            Log.e(TAG, "jwt parse failed", e);
+            return System.currentTimeMillis() + 86_400_000L;
         }
     }
 }

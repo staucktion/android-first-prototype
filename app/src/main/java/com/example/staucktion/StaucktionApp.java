@@ -32,10 +32,6 @@ public class StaucktionApp extends Application {
         OneSignal.initWithContext(this);
         OneSignal.setAppId(ONESIGNAL_APP_ID);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            OneSignal.promptForPushNotifications();
-        }
-
         // 3) Log current subscription state
         OSDeviceState state = OneSignal.getDeviceState();
         if (state != null) {
@@ -45,35 +41,38 @@ public class StaucktionApp extends Application {
         }
 
         // 4) Handle notification opens
-        OneSignal.setNotificationOpenedHandler(
-                new OneSignal.OSNotificationOpenedHandler() {
-                    @Override
-                    public void notificationOpened(OSNotificationOpenedResult result) {
-                        JSONObject data = result.getNotification().getAdditionalData();
-                        if (data == null) return;
+        OneSignal.setNotificationOpenedHandler(result -> {
+            // 1) pull the raw body text
+            String fullMessage = result
+                    .getNotification()
+                    .getBody();   // e.g. "Your photo has been rejected with the following reason: bad photo"
 
-                        int photoId = data.optInt("photo_id", -1);
-                        String photoUrl = data.optString("photo_url", "");
-                        String status = data.optString("status", "");
+            JSONObject data = result.getNotification().getAdditionalData();
+            if (data == null) return;
 
-                        if (photoId >= 0) {
-                            Intent intent = new Intent(
-                                    getApplicationContext(),
-                                    AuctionSettingsActivity.class
-                            ).addFlags(
-                                    Intent.FLAG_ACTIVITY_NEW_TASK |
-                                            Intent.FLAG_ACTIVITY_CLEAR_TOP
-                            );
-                            intent.putExtra("photo_id", photoId);
-                            intent.putExtra("photo_url", photoUrl);
-                            intent.putExtra("status", status);
-                            Timber.d("🔍 AuctionSettingsActivity received photo_id=%d, photo_url=%s, status=%s",
-                                    photoId, photoUrl, status);
+            int    photoId = data.optInt("photo_id", -1);
+            String action  = data.optString("action", "");
 
-                            startActivity(intent);
-                        }
-                    }
-                }
-        );
+            if (photoId < 0) return;
+
+            Class<?> target;
+            if ("approve".equalsIgnoreCase(action)) {
+                target = AuctionSettingsActivity.class;
+            }
+            else if ("reject".equalsIgnoreCase(action)
+                    || "rejected".equalsIgnoreCase(action)) {
+                target = PhotoRejectedActivity.class;
+            }
+            else {
+                target = MainActivity.class;  // fallback
+            }
+
+            Intent i = new Intent(getApplicationContext(), target)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    .putExtra("notification_photo_id",  photoId)
+                    .putExtra("notification_action",    action)
+                    .putExtra("notification_message",   fullMessage);
+            startActivity(i);
+        });
     }
 }
